@@ -1,0 +1,17 @@
+{
+  "name": "gaushala-booking-app",
+  "version": "1.0.0",
+  "description": "Gaushala visit booking application",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "build": "npm run build --workspaces",
+    "start": "npm run start --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces"
+  }
+}
