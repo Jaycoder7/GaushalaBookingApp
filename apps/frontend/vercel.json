@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build --workspace=gaushala-frontend",
+  "devCommand": "npm run dev --workspace=gaushala-frontend",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "outputDirectory": "apps/frontend/dist"
+}
