@@ -13,5 +13,8 @@
     "start": "npm run start --workspaces",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces"
+  },
+  "devDependencies": {
+    "terser": "^5.49.0"
   }
 }
