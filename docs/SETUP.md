@@ -13,9 +13,9 @@
 
 Create `.env.local` files in:
 - `apps/backend/.env.local`
-- `apps/frontend/.env.local`
+- `.env.local` (repository root, for the frontend)
 
-See `.env.example` files for reference.
+See `.env.frontend.example` and `apps/backend/.env.example` for reference.
 
 ### 2. PostgreSQL Setup
 
@@ -42,15 +42,18 @@ npm run migrate
 ### 4. Frontend Setup
 
 ```bash
-cd apps/frontend
+# From the repository root
 npm install
 ```
 
 ### 5. Start Development
 
 ```bash
-# From root
+# Terminal 1: frontend, from the repository root
 npm run dev
+
+# Terminal 2: backend, from the repository root
+npm run backend:dev
 ```
 
 ## Google OAuth Setup

@@ -39,21 +39,21 @@ RATE_LIMIT_MAX_REQUESTS=10
 JWT_SECRET=your_jwt_secret_here (NEVER commit this)
 ```
 
-## Frontend (`apps/frontend/.env.local`)
+## Frontend (`.env.local`)
 
 ```bash
 # API
-REACT_APP_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:5000/api
 
 # Google OAuth
-REACT_APP_GOOGLE_CLIENT_ID=your_client_id_here
-REACT_APP_GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
+VITE_GOOGLE_CLIENT_ID=your_client_id_here
+VITE_GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
 
 # hCaptcha
-REACT_APP_HCAPTCHA_SITE_KEY=your_site_key_here
+VITE_HCAPTCHA_SITE_KEY=your_site_key_here
 
 # Environment
-REACT_APP_ENV=development
+VITE_APP_ENV=development
 ```
 
 ## Important Security Notes

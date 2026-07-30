@@ -6,12 +6,14 @@ A web app for booking Gaushala visits with visitor booking flow and admin dashbo
 
 ```
 .
+├── src/                    # React + TypeScript frontend
+├── index.html              # Vite frontend entry point
 ├── apps/
-│   ├── frontend/          # React + TypeScript
-│   └── backend/           # Node.js + Express + TypeScript
+│   └── backend/            # Node.js + Express + TypeScript
 ├── packages/
-│   └── shared/            # Shared types and utilities
-├── docker-compose.yml     # Local development environment
+│   └── shared/             # Shared types and utilities
+├── vercel.json             # Frontend deployment configuration
+├── docker-compose.yml      # Local development environment
 └── README.md
 ```
 
@@ -36,7 +38,8 @@ A web app for booking Gaushala visits with visitor booking flow and admin dashbo
    ```
 
 3. **Set up environment variables**
-   - Copy `.env.example` files in frontend and backend to `.env.local`
+   - Copy `.env.frontend.example` to `.env.local`
+   - Copy `apps/backend/.env.example` to `apps/backend/.env.local`
    - Fill in required values (see setup docs)
 
 4. **Start PostgreSQL**
@@ -51,9 +54,10 @@ A web app for booking Gaushala visits with visitor booking flow and admin dashbo
    npm run migrate
    ```
 
-6. **Start development servers**
+6. **Start the development servers in separate terminals**
    ```bash
    npm run dev
+   npm run backend:dev
    ```
    - Frontend: http://localhost:3000
    - Backend: http://localhost:5000
