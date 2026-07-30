@@ -65,13 +65,27 @@ A web app for booking Gaushala visits with visitor booking flow and admin dashbo
 ## Features
 
 - ✅ Visitor booking without authentication
-- ✅ Admin dashboard with Google OAuth
-- ✅ Google Calendar sync
+- ✅ Token-based booking cancellation
+- ✅ Admin dashboard with whitelisted Google sign-in
+- ✅ Booking management, manual bookings, CSV export, and no-show tracking
+- ✅ Weekly schedule configuration and individual slot blocking
+- ✅ Google Calendar sync when OAuth refresh credentials are configured
 - ✅ Email notifications via Resend
 - ✅ SMS placeholder (ready for integration)
 - ✅ CAPTCHA protection (hCaptcha)
-- ✅ Rate limiting
+- ✅ IP and phone-number rate limiting
 - ✅ PostgreSQL database
+
+## Production topology
+
+- Frontend: Vercel, using the root `vercel.json`
+- Backend: any Node/Docker host, using `apps/backend/Dockerfile`
+- Database: managed PostgreSQL
+
+The frontend needs `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`, and
+`VITE_HCAPTCHA_SITE_KEY` in Vercel. The backend needs the variables documented
+in `apps/backend/.env.example` on its own host. Run the database migration
+before serving traffic; the Docker image does this automatically.
 
 ## Documentation
 

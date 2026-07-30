@@ -1,4 +1,5 @@
-import { Pool } from 'pg';
+import '../config';
+import { Pool, PoolClient, QueryResultRow } from 'pg';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -25,10 +26,10 @@ export function getPool() {
   return pool;
 }
 
-export async function query(text: string, params?: any[]) {
+export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []) {
   const start = Date.now();
   try {
-    const result = await pool.query(text, params);
+    const result = await pool.query<T>(text, params);
     const duration = Date.now() - start;
     if (duration > 1000) {
       console.warn('Long query detected:', { text, duration });
@@ -37,5 +38,20 @@ export async function query(text: string, params?: any[]) {
   } catch (error) {
     console.error('Database query error:', { text, error });
     throw error;
+  }
+}
+
+export async function withTransaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }

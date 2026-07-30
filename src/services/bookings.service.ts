@@ -23,8 +23,10 @@ export interface BookingDetails {
   phone: string;
   email: string;
   headcount: number;
+  note?: string;
   slotDate: string;
   slotTime: string;
+  slotEndTime?: string;
   status: string;
 }
 

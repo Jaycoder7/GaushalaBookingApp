@@ -7,6 +7,7 @@ export interface Slot {
   endTime: string;
   familyCapacity: number;
   familyBookingsCount: number;
+  remainingCapacity: number;
   status: 'open' | 'full' | 'blocked' | 'past';
 }
 

@@ -61,13 +61,15 @@ npm run backend:dev
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project
 3. Enable:
-   - Google+ API
+   - Google Identity Services
    - Google Calendar API
 4. Create OAuth 2.0 credentials (Web Application)
-5. Set authorized redirect URIs:
-   - `http://localhost:3000/auth/callback` (dev)
-   - `https://yourdomain.com/auth/callback` (production)
+5. Set authorized JavaScript origins:
+   - `http://localhost:3000` (dev)
+   - Your Vercel production URL
 6. Copy Client ID and Secret to `.env.local`
+7. Generate an offline OAuth refresh token with Calendar scope and set
+   `GOOGLE_CALENDAR_REFRESH_TOKEN` on the backend.
 
 ## Resend Setup
 
@@ -87,3 +89,29 @@ SMS is currently stubbed out. When ready, integrate with:
 - AWS SNS
 
 Update `apps/backend/src/services/sms.service.ts` with provider implementation.
+
+## Production Deployment
+
+### Frontend on Vercel
+
+Use the repository root as the Vercel project root. The checked-in
+`vercel.json` builds the Vite app into `dist` and supports direct navigation to
+React routes.
+
+Set:
+
+```bash
+VITE_API_URL=https://your-backend-host/api
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
+```
+
+### Backend
+
+Deploy `apps/backend/Dockerfile` to a container host and attach a managed
+PostgreSQL database. Copy every required value from
+`apps/backend/.env.example` into the host's secret/environment settings.
+The container runs migrations before starting the API.
+
+Set `CORS_ORIGIN` and `APP_URL` to the final Vercel origin, including `https://`
+and without a trailing slash.
