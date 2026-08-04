@@ -108,10 +108,17 @@ VITE_HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
 
 ### Backend
 
-Deploy `apps/backend/Dockerfile` to a container host and attach a managed
-PostgreSQL database. Copy every required value from
-`apps/backend/.env.example` into the host's secret/environment settings.
-The container runs migrations before starting the API.
+Create a second Vercel project from the same repository and set its Root
+Directory to `apps/backend`. Vercel detects `src/index.ts` as an Express app;
+leave Build Command and Output Directory unset. Link the Supabase integration
+to the backend project so it receives `POSTGRES_URL`, then copy every required
+backend value from `apps/backend/.env.example` into the project's environment
+settings.
+
+The Supabase schema migration must be applied separately before the API serves
+traffic. For container hosting, `apps/backend/Dockerfile` remains available and
+runs migrations before starting the API.
 
 Set `CORS_ORIGIN` and `APP_URL` to the final Vercel origin, including `https://`
-and without a trailing slash.
+and without a trailing slash. `CORS_ORIGIN` accepts a comma-separated allowlist
+when both production and preview frontends need API access.

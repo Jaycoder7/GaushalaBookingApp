@@ -1,11 +1,17 @@
 import '../config';
 import { Pool, PoolClient, QueryResultRow } from 'pg';
 
+const connectionString = process.env.DATABASE_URL
+  || process.env.POSTGRES_URL
+  || process.env.POSTGRES_PRISMA_URL;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
+  connectionString,
+  // Keep each serverless instance's pool deliberately small. Supabase's
+  // pooled POSTGRES_URL should be preferred in production.
+  max: Number(process.env.DATABASE_POOL_MAX || 5),
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on('error', (err) => {

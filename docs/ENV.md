@@ -5,6 +5,8 @@
 ```bash
 # Database
 DATABASE_URL=postgresql://gaushala:gaushala_dev_password@localhost:5432/gaushala_dev
+# On Vercel, the Supabase integration supplies POSTGRES_URL automatically.
+# DATABASE_POOL_MAX=5
 
 # Server
 NODE_ENV=development

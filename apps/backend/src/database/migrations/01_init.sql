@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_slots_date_status ON slots(date, status);
+CREATE INDEX IF NOT EXISTS idx_slots_template_id ON slots(template_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_slot_status ON bookings(slot_id, status);
 CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_cancellation_token ON bookings(cancellation_token);
@@ -75,3 +76,11 @@ INSERT INTO slot_templates (
 )
 SELECT ARRAY[1, 2, 3, 4, 5, 6], '09:00', '17:00', 60, 6
 WHERE NOT EXISTS (SELECT 1 FROM slot_templates);
+
+ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE slot_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE admin_users, slot_templates, slots, bookings FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated;
