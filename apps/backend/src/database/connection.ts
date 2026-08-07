@@ -4,9 +4,13 @@ import { Pool, PoolClient, QueryResultRow } from 'pg';
 const connectionString = process.env.DATABASE_URL
   || process.env.POSTGRES_URL
   || process.env.POSTGRES_PRISMA_URL;
+const usesRequireSsl = Boolean(connectionString && /[?&]sslmode=require(?:&|$)/.test(connectionString));
 
 const pool = new Pool({
   connectionString,
+  // PostgreSQL's `require` mode encrypts traffic without CA verification.
+  // Use `verify-full` plus the Supabase CA when strict verification is needed.
+  ssl: usesRequireSsl ? { rejectUnauthorized: false } : undefined,
   // Keep each serverless instance's pool deliberately small. Supabase's
   // pooled POSTGRES_URL should be preferred in production.
   max: Number(process.env.DATABASE_POOL_MAX || 5),
