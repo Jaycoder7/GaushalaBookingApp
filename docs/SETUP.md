@@ -13,9 +13,9 @@
 
 Create `.env.local` files in:
 - `apps/backend/.env.local`
-- `apps/frontend/.env.local`
+- `.env.local` (repository root, for the frontend)
 
-See `.env.example` files for reference.
+See `.env.frontend.example` and `apps/backend/.env.example` for reference.
 
 ### 2. PostgreSQL Setup
 
@@ -42,15 +42,18 @@ npm run migrate
 ### 4. Frontend Setup
 
 ```bash
-cd apps/frontend
+# From the repository root
 npm install
 ```
 
 ### 5. Start Development
 
 ```bash
-# From root
+# Terminal 1: frontend, from the repository root
 npm run dev
+
+# Terminal 2: backend, from the repository root
+npm run backend:dev
 ```
 
 ## Google OAuth Setup
@@ -58,13 +61,15 @@ npm run dev
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project
 3. Enable:
-   - Google+ API
+   - Google Identity Services
    - Google Calendar API
 4. Create OAuth 2.0 credentials (Web Application)
-5. Set authorized redirect URIs:
-   - `http://localhost:3000/auth/callback` (dev)
-   - `https://yourdomain.com/auth/callback` (production)
+5. Set authorized JavaScript origins:
+   - `http://localhost:3000` (dev)
+   - Your Vercel production URL
 6. Copy Client ID and Secret to `.env.local`
+7. Generate an offline OAuth refresh token with Calendar scope and set
+   `GOOGLE_CALENDAR_REFRESH_TOKEN` on the backend.
 
 ## Resend Setup
 
@@ -84,3 +89,36 @@ SMS is currently stubbed out. When ready, integrate with:
 - AWS SNS
 
 Update `apps/backend/src/services/sms.service.ts` with provider implementation.
+
+## Production Deployment
+
+### Frontend on Vercel
+
+Use the repository root as the Vercel project root. The checked-in
+`vercel.json` builds the Vite app into `dist` and supports direct navigation to
+React routes.
+
+Set:
+
+```bash
+VITE_API_URL=https://your-backend-host/api
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
+```
+
+### Backend
+
+Create a second Vercel project from the same repository and set its Root
+Directory to `apps/backend`. Vercel detects `src/index.ts` as an Express app;
+leave Build Command and Output Directory unset. Link the Supabase integration
+to the backend project so it receives `POSTGRES_URL`, then copy every required
+backend value from `apps/backend/.env.example` into the project's environment
+settings.
+
+The Supabase schema migration must be applied separately before the API serves
+traffic. For container hosting, `apps/backend/Dockerfile` remains available and
+runs migrations before starting the API.
+
+Set `CORS_ORIGIN` and `APP_URL` to the final Vercel origin, including `https://`
+and without a trailing slash. `CORS_ORIGIN` accepts a comma-separated allowlist
+when both production and preview frontends need API access.

@@ -7,9 +7,18 @@ http://localhost:5000/api
 
 ## Authentication
 
-Admin routes require Google OAuth token in Authorization header:
+Exchange the Google credential for an application token:
+
+```http
+POST /api/admin/auth/google
+Content-Type: application/json
+
+{ "credential": "google_identity_credential" }
 ```
-Authorization: Bearer {google_id_token}
+
+All other admin routes require the returned application token:
+```
+Authorization: Bearer {application_token}
 ```
 
 ## Endpoints
@@ -30,6 +39,7 @@ Response:
       "endTime": "10:00",
       "familyCapacity": 6,
       "familyBookingsCount": 3,
+      "remainingCapacity": 3,
       "status": "open"
     }
   ]
@@ -90,6 +100,11 @@ Response:
 
 ### Admin (Protected)
 
+#### Dashboard summary
+```
+GET /api/admin/summary
+```
+
 #### List Bookings
 ```
 GET /api/admin/bookings?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&status=confirmed
@@ -112,6 +127,28 @@ Response:
 ```
 
 #### Create/Update Slot Template
+```
+
+#### Manual booking
+```
+POST /api/admin/bookings
+
+Body:
+{
+  "slotId": "uuid",
+  "familyName": "Smith",
+  "phone": "+1234567890",
+  "email": "john@example.com",
+  "headcount": 4,
+  "note": "Phone-in visitor"
+}
+```
+
+#### Change booking status
+```
+PATCH /api/admin/bookings/{bookingId}/status
+
+Body: { "status": "confirmed" | "cancelled" | "no_show" }
 ```
 POST /api/admin/slot-templates
 
@@ -145,6 +182,11 @@ Response:
 {
   "status": "blocked"
 }
+```
+
+Reopen with:
+```
+DELETE /api/admin/slots/{slotId}/block
 ```
 
 #### Export Bookings

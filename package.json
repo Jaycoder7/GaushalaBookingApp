@@ -4,17 +4,51 @@
   "description": "Gaushala visit booking application",
   "private": true,
   "workspaces": [
-    "apps/*",
+    "apps/backend",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces",
-    "build": "npm run build --workspaces",
-    "start": "npm run start --workspaces",
-    "test": "npm run test --workspaces",
-    "lint": "npm run lint --workspaces"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "backend:dev": "npm run dev --workspace=gaushala-backend",
+    "backend:build": "npm run build --workspace=gaushala-backend",
+    "backend:start": "npm run start --workspace=gaushala-backend",
+    "shared:build": "npm run build --workspace=@gaushala/shared",
+    "test": "npm run test:frontend && npm run test --workspaces --if-present",
+    "test:frontend": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hcaptcha/react-hcaptcha": "^1.10.1",
+    "axios": "^1.5.0",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.15.0"
   },
   "devDependencies": {
-    "terser": "^5.49.0"
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/node": "^20.5.0",
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.4.0",
+    "@typescript-eslint/parser": "^6.4.0",
+    "@vitejs/plugin-react-swc": "^3.3.2",
+    "autoprefixer": "^10.4.15",
+    "eslint": "^8.47.0",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.28",
+    "tailwindcss": "^3.3.3",
+    "terser": "^5.49.0",
+    "typescript": "^5.1.6",
+    "vite": "^4.4.9",
+    "vitest": "^2.1.9"
   }
 }
