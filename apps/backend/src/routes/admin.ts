@@ -4,7 +4,7 @@ import { query, withTransaction } from '../database/connection';
 import { HttpError } from '../errors';
 import { adminAuthMiddleware } from '../middleware/auth.middleware';
 import { authenticateGoogleCredential, generateToken } from '../services/auth.service';
-import { queueCalendarSync } from '../services/calendar.service';
+import { enqueueBackgroundJob, processBackgroundJobs } from '../services/jobs.service';
 import { ensureSlotsGenerated, publicSlot, recalculateSlot, SlotRow } from '../services/slots.service';
 
 const router = express.Router();
@@ -40,6 +40,26 @@ function serializeBooking(row: AdminBookingRow) {
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
     createdAt: row.created_at,
+  };
+}
+
+function validateBookingDetails(body: Record<string, unknown>) {
+  const { familyName, phone, email, headcount, note } = body;
+  if (
+    typeof familyName !== 'string' || familyName.trim().length < 2 || familyName.trim().length > 255 ||
+    typeof phone !== 'string' || !/^\+?[1-9]\d{1,14}$/.test(phone) ||
+    typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !Number.isInteger(headcount) || Number(headcount) < 1 || Number(headcount) > 6 ||
+    (typeof note === 'string' && note.length > 1000)
+  ) {
+    throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid booking details.');
+  }
+  return {
+    familyName: familyName.trim(),
+    phone: phone.trim(),
+    email: email.trim().toLowerCase(),
+    headcount: Number(headcount),
+    note: typeof note === 'string' && note.trim() ? note.trim() : null,
   };
 }
 
@@ -145,16 +165,9 @@ router.get('/bookings', async (req, res, next) => {
 
 router.post('/bookings', async (req, res, next) => {
   try {
-    const { slotId, familyName, phone, email, headcount, note } = req.body || {};
-    if (
-      typeof slotId !== 'string' ||
-      typeof familyName !== 'string' || familyName.trim().length < 2 ||
-      typeof phone !== 'string' || !/^\+?[1-9]\d{1,14}$/.test(phone) ||
-      typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-      !Number.isInteger(headcount) || headcount < 1 || headcount > 6
-    ) {
-      throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid manual booking details.');
-    }
+    const { slotId } = req.body || {};
+    if (typeof slotId !== 'string') throw new HttpError(400, 'VALIDATION_ERROR', 'A visit time is required.');
+    const details = validateBookingDetails(req.body);
 
     const booking = await withTransaction(async client => {
       const slotResult = await client.query(
@@ -172,7 +185,7 @@ router.post('/bookings', async (req, res, next) => {
         `SELECT 1 FROM bookings
           WHERE slot_id = $1 AND status = 'confirmed'
             AND (phone = $2 OR LOWER(email) = LOWER($3))`,
-        [slotId, phone, email]
+        [slotId, details.phone, details.email]
       );
       if (duplicate.rowCount) {
         throw new HttpError(409, 'DUPLICATE_BOOKING', 'This visitor already has a booking for that time.');
@@ -182,9 +195,13 @@ router.post('/bookings', async (req, res, next) => {
          VALUES ($1, $2, $3, LOWER($4), $5, $6)
          RETURNING id, family_name, phone, email, headcount, note, status,
                    slot_id, created_at`,
-        [slotId, familyName.trim(), phone, email.trim(), headcount, typeof note === 'string' && note.trim() ? note.trim() : null]
+        [slotId, details.familyName, details.phone, details.email, details.headcount, details.note]
       );
       await recalculateSlot(client, slotId);
+      await enqueueBackgroundJob(client, 'calendar_sync', { slotId }, {
+        dedupeKey: `calendar:${slotId}`,
+        maxAttempts: 100,
+      });
       return {
         ...inserted.rows[0],
         slot_date: slot.date,
@@ -192,9 +209,51 @@ router.post('/bookings', async (req, res, next) => {
         end_time: slot.end_time,
       } as AdminBookingRow;
     });
-    queueCalendarSync(booking.slot_id);
+    await processBackgroundJobs(1);
     res.status(201).json(serializeBooking(booking));
   } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/bookings/:bookingId', async (req, res, next) => {
+  try {
+    const details = validateBookingDetails(req.body || {});
+    const booking = await withTransaction(async client => {
+      const existing = await client.query<AdminBookingRow>(
+        `SELECT b.*, s.date::text AS slot_date, s.start_time::text, s.end_time::text
+           FROM bookings b JOIN slots s ON s.id = b.slot_id
+          WHERE b.id = $1 FOR UPDATE OF b`,
+        [req.params.bookingId]
+      );
+      const row = existing.rows[0];
+      if (!row) throw new HttpError(404, 'BOOKING_NOT_FOUND', 'Booking not found.');
+      const updated = await client.query<AdminBookingRow>(
+        `UPDATE bookings
+            SET family_name = $1, phone = $2, email = $3, headcount = $4,
+                note = $5, updated_at = NOW()
+          WHERE id = $6
+          RETURNING *`,
+        [details.familyName, details.phone, details.email, details.headcount, details.note, row.id]
+      );
+      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
+        dedupeKey: `calendar:${row.slot_id}`,
+        maxAttempts: 100,
+      });
+      return {
+        ...updated.rows[0],
+        slot_date: row.slot_date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+      };
+    });
+    await processBackgroundJobs(1);
+    res.json(serializeBooking(booking));
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      next(new HttpError(409, 'DUPLICATE_BOOKING', 'That phone number or email already has a confirmed booking for this time.'));
+      return;
+    }
     next(error);
   }
 });
@@ -223,9 +282,13 @@ router.patch('/bookings/:bookingId/status', async (req, res, next) => {
         [status, row.id]
       );
       await recalculateSlot(client, row.slot_id);
+      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
+        dedupeKey: `calendar:${row.slot_id}`,
+        maxAttempts: 100,
+      });
       return { ...row, status };
     });
-    queueCalendarSync(booking.slot_id);
+    await processBackgroundJobs(1);
     res.json(serializeBooking(booking));
   } catch (error: any) {
     if (error?.code === '23505') {
@@ -350,11 +413,66 @@ router.post('/slots/:slotId/block', async (req, res, next) => {
       `UPDATE slots
           SET status = 'blocked', blocked_reason = $1, updated_at = NOW()
         WHERE id = $2
-        RETURNING id, status, blocked_reason`,
+        RETURNING id, status, blocked_reason, family_bookings_count`,
       [typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 500) : null, req.params.slotId]
     );
     if (!result.rows[0]) throw new HttpError(404, 'SLOT_NOT_FOUND', 'Slot not found.');
-    res.json({ id: result.rows[0].id, status: result.rows[0].status, reason: result.rows[0].blocked_reason });
+    const confirmedBookings = result.rows[0].family_bookings_count;
+    res.json({
+      id: result.rows[0].id,
+      status: result.rows[0].status,
+      reason: result.rows[0].blocked_reason,
+      confirmedBookings,
+      followUpRequired: confirmedBookings > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/slots/block-date', async (req, res, next) => {
+  try {
+    const { date, reason } = req.body || {};
+    if (typeof date !== 'string' || !DATE.test(date)) {
+      throw new HttpError(400, 'VALIDATION_ERROR', 'Date must use YYYY-MM-DD format.');
+    }
+    await ensureSlotsGenerated(date, date);
+    const result = await query(
+      `UPDATE slots
+          SET status = 'blocked', blocked_reason = $1, updated_at = NOW()
+        WHERE date = $2
+        RETURNING id, family_bookings_count`,
+      [typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : null, date]
+    );
+    const confirmedBookings = result.rows.reduce((total, row) => total + Number(row.family_bookings_count), 0);
+    res.json({
+      date,
+      affectedSlots: result.rowCount || 0,
+      confirmedBookings,
+      followUpRequired: confirmedBookings > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/slots/block-date/:date', async (req, res, next) => {
+  try {
+    if (!DATE.test(req.params.date)) {
+      throw new HttpError(400, 'VALIDATION_ERROR', 'Date must use YYYY-MM-DD format.');
+    }
+    const affectedSlots = await withTransaction(async client => {
+      const result = await client.query<{ id: string }>(
+        `SELECT id FROM slots WHERE date = $1 AND status = 'blocked' FOR UPDATE`,
+        [req.params.date]
+      );
+      for (const row of result.rows) {
+        await client.query('UPDATE slots SET status = \'open\', blocked_reason = NULL, updated_at = NOW() WHERE id = $1', [row.id]);
+        await recalculateSlot(client, row.id);
+      }
+      return result.rowCount || 0;
+    });
+    res.json({ date: req.params.date, affectedSlots });
   } catch (error) {
     next(error);
   }

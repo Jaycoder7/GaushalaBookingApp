@@ -17,7 +17,9 @@ interface CalendarBookingRow {
 
 function calendarClient() {
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALENDAR_REFRESH_TOKEN } = process.env;
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALENDAR_REFRESH_TOKEN) return null;
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALENDAR_REFRESH_TOKEN) {
+    throw new Error('Google Calendar credentials are not configured');
+  }
   const auth = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
   auth.setCredentials({ refresh_token: GOOGLE_CALENDAR_REFRESH_TOKEN });
   return google.calendar({ version: 'v3', auth });
@@ -25,10 +27,6 @@ function calendarClient() {
 
 export async function syncSlotToCalendar(slotId: string): Promise<void> {
   const calendar = calendarClient();
-  if (!calendar) {
-    if (process.env.NODE_ENV !== 'test') console.log('[CALENDAR] Credentials not configured; sync skipped');
-    return;
-  }
 
   const [slotResult, bookingsResult] = await Promise.all([
     query<CalendarSlotRow>(
@@ -78,10 +76,4 @@ export async function syncSlotToCalendar(slotId: string): Promise<void> {
       );
     }
   }
-}
-
-export function queueCalendarSync(slotId: string): void {
-  void syncSlotToCalendar(slotId).catch(error => {
-    console.error('Google Calendar sync failed:', error);
-  });
 }

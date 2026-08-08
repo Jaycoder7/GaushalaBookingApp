@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-interface EmailPayload {
+export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
@@ -24,6 +24,10 @@ export async function sendEmail({ to, subject, html }: EmailPayload) {
       subject,
       html,
     });
+    const apiError = (result as typeof result & { error?: { message?: string } }).error;
+    if (apiError) {
+      throw new Error(`Resend rejected the email: ${apiError.message || 'unknown error'}`);
+    }
     return result;
   } catch (error) {
     console.error('Email send failed:', error);

@@ -54,6 +54,13 @@ export async function updateBookingStatus(id: string, status: AdminBooking['stat
   return (await apiClient.patch(`/admin/bookings/${id}/status`, { status })).data;
 }
 
+export async function updateAdminBooking(
+  id: string,
+  data: Pick<AdminBooking, 'familyName' | 'phone' | 'email' | 'headcount' | 'note'>
+): Promise<AdminBooking> {
+  return (await apiClient.patch(`/admin/bookings/${id}`, data)).data;
+}
+
 export async function createAdminBooking(data: {
   slotId: string;
   familyName: string;
@@ -78,11 +85,31 @@ export async function saveSlotTemplate(template: SlotTemplate): Promise<{ id: st
 }
 
 export async function blockSlot(slotId: string, reason: string) {
-  return (await apiClient.post(`/admin/slots/${slotId}/block`, { reason })).data;
+  return (await apiClient.post(`/admin/slots/${slotId}/block`, { reason })).data as {
+    id: string;
+    confirmedBookings: number;
+    followUpRequired: boolean;
+  };
 }
 
 export async function unblockSlot(slotId: string) {
   return (await apiClient.delete(`/admin/slots/${slotId}/block`)).data;
+}
+
+export async function blockDate(date: string, reason: string) {
+  return (await apiClient.post('/admin/slots/block-date', { date, reason })).data as {
+    date: string;
+    affectedSlots: number;
+    confirmedBookings: number;
+    followUpRequired: boolean;
+  };
+}
+
+export async function unblockDate(date: string) {
+  return (await apiClient.delete(`/admin/slots/block-date/${date}`)).data as {
+    date: string;
+    affectedSlots: number;
+  };
 }
 
 export async function downloadBookingsCsv(params?: { startDate?: string; endDate?: string; status?: string }) {

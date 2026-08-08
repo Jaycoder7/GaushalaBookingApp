@@ -9,6 +9,7 @@ export interface Slot {
   familyBookingsCount: number;
   remainingCapacity: number;
   status: 'open' | 'full' | 'blocked' | 'past';
+  blockedReason?: string;
 }
 
 export async function getAvailableSlots(startDate: string, endDate: string): Promise<Slot[]> {

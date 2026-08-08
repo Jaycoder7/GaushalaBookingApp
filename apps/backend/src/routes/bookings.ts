@@ -1,12 +1,12 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import { QueryResultRow } from 'pg';
 import { withTransaction } from '../database/connection';
 import { HttpError } from '../errors';
 import { validateBookingInput } from '../middleware/validation.middleware';
 import { verifyCaptcha } from '../services/captcha.service';
-import { queueCalendarSync } from '../services/calendar.service';
-import { emailTemplates, sendEmail } from '../services/email.service';
+import { emailTemplates } from '../services/email.service';
+import { enqueueBackgroundJob, processBackgroundJobs } from '../services/jobs.service';
+import { databaseRateLimit } from '../services/rate-limit.service';
 import { sendSMS } from '../services/sms.service';
 import { recalculateSlot } from '../services/slots.service';
 
@@ -28,21 +28,20 @@ interface BookingRow extends QueryResultRow {
   end_time: string;
 }
 
-const bookingLimiter = rateLimit({
+const bookingLimiter = databaseRateLimit({
+  scope: 'booking-ip',
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 10,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { error: 'Too many booking attempts. Please try again in a few minutes.', code: 'RATE_LIMITED' },
+  key: req => req.ip || 'unknown',
+  message: 'Too many booking attempts. Please try again in a few minutes.',
 });
 
-const phoneLimiter = rateLimit({
+const phoneLimiter = databaseRateLimit({
+  scope: 'booking-phone',
   windowMs: 60 * 60 * 1000,
   limit: 5,
-  keyGenerator: req => String(req.body.phone),
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { error: 'Too many bookings from this phone number. Please try again later.', code: 'RATE_LIMITED' },
+  key: req => typeof req.body?.phone === 'string' ? req.body.phone.trim() : 'invalid',
+  message: 'Too many bookings from this phone number. Please try again later.',
 });
 
 function bookingDetails(row: BookingRow) {
@@ -60,68 +59,6 @@ function bookingDetails(row: BookingRow) {
   };
 }
 
-async function sendConfirmation(row: BookingRow, cancellationLink: string): Promise<void> {
-  const tasks: Promise<unknown>[] = [
-    sendEmail({
-      to: row.email,
-      subject: 'Your Gaushala visit is confirmed',
-      html: emailTemplates.bookingConfirmation(
-        row.family_name,
-        row.date,
-        row.start_time.slice(0, 5),
-        cancellationLink
-      ),
-    }),
-    sendSMS({
-      to: row.phone,
-      message: `Your Gaushala visit is confirmed for ${row.date} at ${row.start_time.slice(0, 5)}.`,
-    }),
-  ];
-
-  if (process.env.ADMIN_NOTIFICATION_EMAIL) {
-    tasks.push(sendEmail({
-      to: process.env.ADMIN_NOTIFICATION_EMAIL,
-      subject: 'New Gaushala visit booking',
-      html: emailTemplates.adminNotification(
-        row.family_name,
-        row.phone,
-        row.headcount,
-        row.date,
-        row.start_time.slice(0, 5)
-      ),
-    }));
-  }
-
-  const results = await Promise.allSettled(tasks);
-  results.filter(result => result.status === 'rejected').forEach(result => {
-    console.error('Booking notification failed:', (result as PromiseRejectedResult).reason);
-  });
-}
-
-async function sendCancellationConfirmation(row: BookingRow): Promise<void> {
-  const subject = 'Your Gaushala visit has been cancelled';
-  const html = emailTemplates.cancellationConfirmation(
-    row.family_name,
-    row.date,
-    row.start_time.slice(0, 5)
-  );
-  const tasks: Promise<unknown>[] = [
-    sendEmail({ to: row.email, subject, html }),
-    sendSMS({
-      to: row.phone,
-      message: `Your Gaushala visit for ${row.date} at ${row.start_time.slice(0, 5)} has been cancelled.`,
-    }),
-  ];
-  if (process.env.ADMIN_NOTIFICATION_EMAIL) {
-    tasks.push(sendEmail({
-      to: process.env.ADMIN_NOTIFICATION_EMAIL,
-      subject: `Cancelled: ${row.family_name} Gaushala visit`,
-      html,
-    }));
-  }
-  await Promise.allSettled(tasks);
-}
-
 // POST /api/bookings - Create a booking
 router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req, res, next) => {
   try {
@@ -134,6 +71,7 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       throw new HttpError(400, 'CAPTCHA_FAILED', 'CAPTCHA verification failed. Please try again.');
     }
 
+    const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
     const booking = await withTransaction(async client => {
       const slotResult = await client.query<QueryResultRow>(
         `SELECT id, date::text, start_time::text, end_time::text,
@@ -183,19 +121,38 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
         ]
       );
       await recalculateSlot(client, slotId);
-
-      return {
+      const row = {
         ...inserted.rows[0],
         date: slot.date,
         start_time: slot.start_time,
         end_time: slot.end_time,
       } as BookingRow;
+      const cancellationLink = `${appUrl}/cancel/${row.cancellation_token}`;
+      await enqueueBackgroundJob(client, 'email', {
+        to: row.email,
+        subject: 'Your Gaushala visit is confirmed',
+        html: emailTemplates.bookingConfirmation(row.family_name, row.date, row.start_time.slice(0, 5), cancellationLink),
+      }, { dedupeKey: `booking-confirmation:${row.id}`, maxAttempts: 20 });
+      if (process.env.ADMIN_NOTIFICATION_EMAIL) {
+        await enqueueBackgroundJob(client, 'email', {
+          to: process.env.ADMIN_NOTIFICATION_EMAIL,
+          subject: 'New Gaushala visit booking',
+          html: emailTemplates.adminNotification(row.family_name, row.phone, row.headcount, row.date, row.start_time.slice(0, 5)),
+        }, { dedupeKey: `booking-admin:${row.id}`, maxAttempts: 20 });
+      }
+      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
+        dedupeKey: `calendar:${row.slot_id}`,
+        maxAttempts: 100,
+      });
+      return row;
     });
 
-    const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
     const cancellationLink = `${appUrl}/cancel/${booking.cancellation_token}`;
-    void sendConfirmation(booking, cancellationLink);
-    queueCalendarSync(booking.slot_id);
+    void sendSMS({
+      to: booking.phone,
+      message: `Your Gaushala visit is confirmed for ${booking.date} at ${booking.start_time.slice(0, 5)}.`,
+    }).catch(error => console.error('SMS notification failed:', error));
+    await processBackgroundJobs(1);
 
     res.status(201).json({
       id: booking.id,
@@ -259,12 +216,33 @@ router.delete('/:cancellationToken', bookingLimiter, async (req, res, next) => {
         [row.id]
       );
       await recalculateSlot(client, row.slot_id);
-      return { booking: { ...row, status: 'cancelled' as const }, cancelledNow: true };
+      const booking = { ...row, status: 'cancelled' as const };
+      const subject = 'Your Gaushala visit has been cancelled';
+      const html = emailTemplates.cancellationConfirmation(booking.family_name, booking.date, booking.start_time.slice(0, 5));
+      await enqueueBackgroundJob(client, 'email', { to: booking.email, subject, html }, {
+        dedupeKey: `booking-cancelled:${booking.id}`,
+        maxAttempts: 20,
+      });
+      if (process.env.ADMIN_NOTIFICATION_EMAIL) {
+        await enqueueBackgroundJob(client, 'email', {
+          to: process.env.ADMIN_NOTIFICATION_EMAIL,
+          subject: `Cancelled: ${booking.family_name} Gaushala visit`,
+          html,
+        }, { dedupeKey: `booking-cancelled-admin:${booking.id}`, maxAttempts: 20 });
+      }
+      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: booking.slot_id }, {
+        dedupeKey: `calendar:${booking.slot_id}`,
+        maxAttempts: 100,
+      });
+      return { booking, cancelledNow: true };
     });
 
     if (result.cancelledNow) {
-      queueCalendarSync(result.booking.slot_id);
-      void sendCancellationConfirmation(result.booking);
+      void sendSMS({
+        to: result.booking.phone,
+        message: `Your Gaushala visit for ${result.booking.date} at ${result.booking.start_time.slice(0, 5)} has been cancelled.`,
+      }).catch(error => console.error('SMS notification failed:', error));
+      await processBackgroundJobs(1);
     }
     res.json({
       ...bookingDetails(result.booking),

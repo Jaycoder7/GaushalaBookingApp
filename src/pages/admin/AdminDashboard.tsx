@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   AdminBooking,
   AdminSummary,
+  blockDate,
   blockSlot,
   createAdminBooking,
   downloadBookingsCsv,
@@ -15,6 +16,8 @@ import {
   saveSlotTemplate,
   SlotTemplate,
   unblockSlot,
+  unblockDate,
+  updateAdminBooking,
   updateBookingStatus,
 } from '../../services/admin.service';
 import { Slot } from '../../services/slots.service';
@@ -46,6 +49,11 @@ export default function AdminDashboard() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [schedule, setSchedule] = useState<SlotTemplate>(defaultSchedule);
   const [statusFilter, setStatusFilter] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
+  const [editingBooking, setEditingBooking] = useState<AdminBooking | null>(null);
+  const [blockDay, setBlockDay] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [blockReason, setBlockReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showManualBooking, setShowManualBooking] = useState(false);
@@ -70,7 +78,11 @@ export default function AdminDashboard() {
       const endDate = format(addDays(new Date(), 30), 'yyyy-MM-dd');
       const [summaryData, bookingData, templates, slotData] = await Promise.all([
         getAdminSummary(),
-        getAdminBookings(statusFilter ? { status: statusFilter } : undefined),
+        getAdminBookings({
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(startDateFilter ? { startDate: startDateFilter } : {}),
+          ...(endDateFilter ? { endDate: endDateFilter } : {}),
+        }),
         getSlotTemplates(),
         getAdminSlots(startDate, endDate),
       ]);
@@ -87,7 +99,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [signOut, statusFilter]);
+  }, [endDateFilter, signOut, startDateFilter, statusFilter]);
 
   useEffect(() => {
     if (!localStorage.getItem('admin_token')) {
@@ -126,6 +138,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const saveBookingEdits = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingBooking) return;
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await updateAdminBooking(editingBooking.id, editingBooking);
+      setBookings(current => current.map(item => item.id === updated.id ? updated : item));
+      setEditingBooking(null);
+      setNotice('Booking details updated.');
+    } catch (updateError) {
+      setError(messageFrom(updateError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveSchedule = async () => {
     setSaving(true);
     setError('');
@@ -149,12 +178,49 @@ export default function AdminDashboard() {
         await unblockSlot(slot.id);
       } else {
         const reason = window.prompt('Reason for blocking this time (optional):', '') ?? '';
-        await blockSlot(slot.id, reason);
+        const result = await blockSlot(slot.id, reason);
+        if (result.followUpRequired) {
+          setNotice(`Visit time blocked. Follow up with ${result.confirmedBookings} confirmed ${result.confirmedBookings === 1 ? 'family' : 'families'} already booked in this time.`);
+          await load();
+          return;
+        }
       }
       setNotice(slot.status === 'blocked' ? 'Visit time reopened.' : 'Visit time blocked.');
       await load();
     } catch (blockError) {
       setError(messageFrom(blockError));
+    }
+  };
+
+  const blockWholeDay = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const result = await blockDate(blockDay, blockReason);
+      setNotice(result.followUpRequired
+        ? `Date blocked. Follow up with ${result.confirmedBookings} confirmed ${result.confirmedBookings === 1 ? 'family' : 'families'} across ${result.affectedSlots} visit times.`
+        : `Date blocked across ${result.affectedSlots} visit times.`);
+      setBlockReason('');
+      await load();
+    } catch (blockError) {
+      setError(messageFrom(blockError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reopenWholeDay = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const result = await unblockDate(blockDay);
+      setNotice(`Reopened ${result.affectedSlots} visit times on ${blockDay}.`);
+      await load();
+    } catch (blockError) {
+      setError(messageFrom(blockError));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -227,7 +293,7 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-bold">All bookings</h2>
                 <p className="mt-1 text-sm text-earth-700">{bookings.length} records</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button onClick={() => setShowManualBooking(current => !current)} className="rounded-xl border border-saffron-500 px-4 py-2 text-sm font-bold text-saffron-700">
                   {showManualBooking ? 'Close form' : 'New booking'}
                 </button>
@@ -241,7 +307,17 @@ export default function AdminDashboard() {
                   <option value="cancelled">Cancelled</option>
                   <option value="no_show">No-show</option>
                 </select>
-                <button onClick={() => void downloadBookingsCsv(statusFilter ? { status: statusFilter } : undefined)} className="rounded-xl bg-earth-900 px-4 py-2 text-sm font-bold text-white">
+                <label className="text-xs font-semibold text-earth-700">From
+                  <input type="date" value={startDateFilter} onChange={event => setStartDateFilter(event.target.value)} className="ml-2 rounded-xl border border-earth-100 bg-white px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="text-xs font-semibold text-earth-700">To
+                  <input type="date" value={endDateFilter} onChange={event => setEndDateFilter(event.target.value)} className="ml-2 rounded-xl border border-earth-100 bg-white px-3 py-2 text-sm font-normal" />
+                </label>
+                <button onClick={() => void downloadBookingsCsv({
+                  ...(statusFilter ? { status: statusFilter } : {}),
+                  ...(startDateFilter ? { startDate: startDateFilter } : {}),
+                  ...(endDateFilter ? { endDate: endDateFilter } : {}),
+                })} className="rounded-xl bg-earth-900 px-4 py-2 text-sm font-bold text-white">
                   Export CSV
                 </button>
               </div>
@@ -284,7 +360,23 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-earth-100">
-                    {bookings.map(booking => (
+                    {bookings.map(booking => editingBooking?.id === booking.id ? (
+                      <tr key={booking.id}>
+                        <td colSpan={6} className="bg-saffron-50/40 px-5 py-4">
+                          <form onSubmit={saveBookingEdits} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                            <input required minLength={2} aria-label="Family name" value={editingBooking.familyName} onChange={event => setEditingBooking({ ...editingBooking, familyName: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <input required type="tel" aria-label="Phone" value={editingBooking.phone} onChange={event => setEditingBooking({ ...editingBooking, phone: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <input required type="email" aria-label="Email" value={editingBooking.email} onChange={event => setEditingBooking({ ...editingBooking, email: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <input required type="number" min={1} max={6} aria-label="Visitors" value={editingBooking.headcount} onChange={event => setEditingBooking({ ...editingBooking, headcount: Number(event.target.value) })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <input aria-label="Note" placeholder="Note" value={editingBooking.note || ''} onChange={event => setEditingBooking({ ...editingBooking, note: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <div className="flex gap-2">
+                              <button disabled={saving} className="rounded-lg bg-saffron-500 px-3 py-2 font-bold text-white">Save</button>
+                              <button type="button" onClick={() => setEditingBooking(null)} className="rounded-lg border border-earth-100 px-3 py-2 font-semibold">Cancel</button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    ) : (
                       <tr key={booking.id}>
                         <td className="px-5 py-4 font-semibold">{format(parseISO(booking.slotDate), 'MMM d, yyyy')}<span className="block font-normal text-earth-700">{formatSlotTime(booking.startTime, booking.endTime)}</span></td>
                         <td className="px-5 py-4">{booking.familyName}</td>
@@ -292,7 +384,7 @@ export default function AdminDashboard() {
                         <td className="px-5 py-4">{booking.headcount}</td>
                         <td className="px-5 py-4 capitalize">{booking.status.replace('_', ' ')}</td>
                         <td className="px-5 py-4">
-                          <select
+                          <div className="flex items-center gap-2"><select
                             value={booking.status}
                             onChange={event => void changeStatus(booking, event.target.value as AdminBooking['status'])}
                             className="rounded-lg border border-earth-100 bg-white px-2 py-1.5"
@@ -301,6 +393,7 @@ export default function AdminDashboard() {
                             <option value="cancelled">Cancelled</option>
                             <option value="no_show">No-show</option>
                           </select>
+                          <button type="button" onClick={() => setEditingBooking({ ...booking })} className="rounded-lg border border-earth-100 px-2 py-1.5 font-semibold">Edit</button></div>
                         </td>
                       </tr>
                     ))}
@@ -348,6 +441,12 @@ export default function AdminDashboard() {
           <section className="mt-6 rounded-2xl bg-white p-6 shadow-soft">
             <h2 className="text-xl font-bold">Upcoming visit times</h2>
             <p className="mt-2 text-sm text-earth-700">Block a time for holidays, private events, or maintenance.</p>
+            <form onSubmit={blockWholeDay} className="mt-6 grid gap-3 rounded-2xl border border-saffron-100 bg-saffron-50/40 p-4 sm:grid-cols-[auto_1fr_auto_auto] sm:items-end">
+              <label className="text-sm font-semibold">Whole date<input required type="date" value={blockDay} onChange={event => setBlockDay(event.target.value)} className="mt-2 block rounded-xl border border-earth-100 bg-white px-3 py-2 font-normal" /></label>
+              <label className="text-sm font-semibold">Reason<input value={blockReason} maxLength={500} onChange={event => setBlockReason(event.target.value)} placeholder="Holiday, event, maintenance…" className="mt-2 block w-full rounded-xl border border-earth-100 bg-white px-3 py-2 font-normal" /></label>
+              <button disabled={saving} className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">Block date</button>
+              <button type="button" disabled={saving} onClick={() => void reopenWholeDay()} className="rounded-xl border border-emerald-600 px-4 py-2.5 text-sm font-bold text-emerald-700 disabled:opacity-60">Reopen date</button>
+            </form>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {slots.map(slot => (
                 <div key={slot.id} className="flex items-center justify-between gap-3 rounded-xl border border-earth-100 p-4">

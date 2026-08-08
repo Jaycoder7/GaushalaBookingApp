@@ -2,6 +2,7 @@ import HCaptcha from '@hcaptcha/react-hcaptcha';
 import axios from 'axios';
 import { addDays, format, parseISO } from 'date-fns';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { createBooking, BookingResponse } from '../services/bookings.service';
 import { getAvailableSlots, Slot } from '../services/slots.service';
 import { formatSlotTime } from '../utils/formatting';
@@ -42,7 +43,9 @@ export default function BookingPage() {
   const [success, setSuccess] = useState<BookingResponse | null>(null);
   const [captchaToken, setCaptchaToken] = useState('');
   const captchaRef = useRef<HCaptcha>(null);
-  const captchaSiteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined;
+  const captchaSiteKey = import.meta.env.MODE === 'test'
+    ? undefined
+    : import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined;
 
   useEffect(() => {
     const loadSlots = async () => {
@@ -142,6 +145,11 @@ export default function BookingPage() {
       <header className="relative overflow-hidden bg-earth-900 px-4 py-14 text-white sm:py-20">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(233,120,24,0.28),transparent_45%)]" />
         <div className="relative mx-auto max-w-5xl">
+          <div className="mb-8 flex justify-end">
+            <Link to="/admin" className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+              Admin login
+            </Link>
+          </div>
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-saffron-500">Visit the Gaushala</p>
           <h1 className="max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">Plan a peaceful visit with your family.</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-300">
@@ -150,8 +158,8 @@ export default function BookingPage() {
         </div>
       </header>
 
-      <form onSubmit={submit} className="mx-auto grid max-w-5xl gap-7 px-4 py-8 lg:grid-cols-[1.15fr_0.85fr] lg:py-12">
-        <section className="rounded-3xl bg-white p-6 shadow-soft sm:p-8">
+      <form onSubmit={submit} className="mx-auto grid min-w-0 max-w-5xl gap-7 px-4 py-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:py-12">
+        <section className="min-w-0 rounded-3xl bg-white p-6 shadow-soft sm:p-8">
           <div className="mb-7 flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-saffron-600">Step 1</p>
@@ -168,7 +176,8 @@ export default function BookingPage() {
             <div className="rounded-2xl bg-earth-50 p-6 text-center text-earth-700">No visit times are currently available.</div>
           ) : (
             <>
-              <div className="flex gap-3 overflow-x-auto pb-3">
+              <div className="max-w-full touch-pan-x overflow-x-auto overscroll-x-contain pb-3">
+                <div className="flex w-max gap-3 pr-1">
                 {dates.map(date => {
                   const openCount = slots.filter(slot => slot.date === date && slot.status === 'open').length;
                   return (
@@ -188,9 +197,11 @@ export default function BookingPage() {
                     </button>
                   );
                 })}
+                </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="mt-6 max-h-[22rem] overflow-y-auto overscroll-y-contain pr-1">
+              <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
                 {daySlots.map(slot => {
                   const available = slot.status === 'open';
                   return (
@@ -207,10 +218,14 @@ export default function BookingPage() {
                             : 'cursor-not-allowed border-transparent bg-earth-50 text-stone-400 line-through'
                       }`}
                     >
-                      {formatSlotTime(slot.startTime, slot.endTime)}
+                      <span className="block">{formatSlotTime(slot.startTime, slot.endTime)}</span>
+                      <span className={`mt-1 block text-xs font-normal ${selectedSlotId === slot.id ? 'text-white/90' : 'text-earth-700'}`}>
+                        {slot.remainingCapacity} {slot.remainingCapacity === 1 ? 'family spot' : 'family spots'} left
+                      </span>
                     </button>
                   );
                 })}
+              </div>
               </div>
             </>
           )}
