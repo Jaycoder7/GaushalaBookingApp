@@ -3,6 +3,7 @@ import axios from 'axios';
 import { addDays, format, parseISO } from 'date-fns';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import VisitInformation from '../components/VisitInformation';
 import { createBooking, BookingResponse } from '../services/bookings.service';
 import { getAvailableSlots, Slot } from '../services/slots.service';
 import { formatSlotTime } from '../utils/formatting';
@@ -192,6 +193,10 @@ export default function BookingPage() {
           </p>
         </div>
       </header>
+
+      <div className="px-4">
+        <VisitInformation />
+      </div>
 
       <form onSubmit={submit} className="mx-auto grid min-w-0 max-w-5xl gap-7 px-4 py-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:py-12">
         <section className="min-w-0 rounded-3xl bg-white p-6 shadow-soft sm:p-8">
