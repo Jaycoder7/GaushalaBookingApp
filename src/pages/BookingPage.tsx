@@ -129,6 +129,14 @@ export default function BookingPage() {
               A confirmation has been sent to <strong>{form.email}</strong>. Keep the cancellation link below in case your plans change.
             </p>
             <a
+              href={success.calendarLink}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex w-full justify-center rounded-xl bg-saffron-500 px-5 py-3 font-semibold text-white transition hover:bg-saffron-600"
+            >
+              Add to Google Calendar
+            </a>
+            <a
               href={success.cancellationLink}
               className="inline-flex w-full justify-center rounded-xl border border-earth-100 px-5 py-3 font-semibold text-saffron-700 transition hover:bg-saffron-50"
             >

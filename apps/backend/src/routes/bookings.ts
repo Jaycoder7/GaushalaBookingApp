@@ -4,6 +4,7 @@ import { withTransaction } from '../database/connection';
 import { HttpError } from '../errors';
 import { validateBookingInput } from '../middleware/validation.middleware';
 import { verifyCaptcha } from '../services/captcha.service';
+import { buildGoogleCalendarUrl, calendarAttachment, VisitorCalendarEvent } from '../services/calendar-invite.service';
 import { emailTemplates } from '../services/email.service';
 import { enqueueBackgroundJob, processBackgroundJobs } from '../services/jobs.service';
 import { databaseRateLimit } from '../services/rate-limit.service';
@@ -44,7 +45,22 @@ const phoneLimiter = databaseRateLimit({
   message: 'Too many bookings from this phone number. Please try again later.',
 });
 
+function visitorCalendarEvent(row: BookingRow, cancellationLink: string, cancelled = false): VisitorCalendarEvent {
+  return {
+    bookingId: row.id,
+    familyName: row.family_name,
+    date: row.date,
+    startTime: row.start_time.slice(0, 5),
+    endTime: row.end_time.slice(0, 5),
+    headcount: row.headcount,
+    cancellationLink,
+    cancelled,
+  };
+}
+
 function bookingDetails(row: BookingRow) {
+  const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
+  const cancellationLink = `${appUrl}/cancel/${row.cancellation_token}`;
   return {
     id: row.id,
     familyName: row.family_name,
@@ -56,6 +72,7 @@ function bookingDetails(row: BookingRow) {
     slotTime: row.start_time.slice(0, 5),
     slotEndTime: row.end_time.slice(0, 5),
     status: row.status,
+    calendarLink: buildGoogleCalendarUrl(visitorCalendarEvent(row, cancellationLink)),
   };
 }
 
@@ -128,10 +145,13 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
         end_time: slot.end_time,
       } as BookingRow;
       const cancellationLink = `${appUrl}/cancel/${row.cancellation_token}`;
+      const calendarEvent = visitorCalendarEvent(row, cancellationLink);
+      const calendarLink = buildGoogleCalendarUrl(calendarEvent);
       await enqueueBackgroundJob(client, 'email', {
         to: row.email,
         subject: 'Your Gaushala visit is confirmed',
-        html: emailTemplates.bookingConfirmation(row.family_name, row.date, row.start_time.slice(0, 5), cancellationLink),
+        html: emailTemplates.bookingConfirmation(row.family_name, row.date, row.start_time.slice(0, 5), cancellationLink, calendarLink),
+        attachments: [calendarAttachment(calendarEvent)],
       }, { dedupeKey: `booking-confirmation:${row.id}`, maxAttempts: 20 });
       if (process.env.ADMIN_NOTIFICATION_EMAIL) {
         await enqueueBackgroundJob(client, 'email', {
@@ -148,6 +168,7 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
     });
 
     const cancellationLink = `${appUrl}/cancel/${booking.cancellation_token}`;
+    const calendarLink = buildGoogleCalendarUrl(visitorCalendarEvent(booking, cancellationLink));
     void sendSMS({
       to: booking.phone,
       message: `Your Gaushala visit is confirmed for ${booking.date} at ${booking.start_time.slice(0, 5)}.`,
@@ -159,6 +180,7 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       status: booking.status,
       cancellationToken: booking.cancellation_token,
       cancellationLink,
+      calendarLink,
     });
   } catch (error) {
     next(error);
@@ -219,7 +241,15 @@ router.delete('/:cancellationToken', bookingLimiter, async (req, res, next) => {
       const booking = { ...row, status: 'cancelled' as const };
       const subject = 'Your Gaushala visit has been cancelled';
       const html = emailTemplates.cancellationConfirmation(booking.family_name, booking.date, booking.start_time.slice(0, 5));
-      await enqueueBackgroundJob(client, 'email', { to: booking.email, subject, html }, {
+      const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
+      const cancellationLink = `${appUrl}/cancel/${booking.cancellation_token}`;
+      const cancelledEvent = visitorCalendarEvent(booking, cancellationLink, true);
+      await enqueueBackgroundJob(client, 'email', {
+        to: booking.email,
+        subject,
+        html,
+        attachments: [calendarAttachment(cancelledEvent)],
+      }, {
         dedupeKey: `booking-cancelled:${booking.id}`,
         maxAttempts: 20,
       });

@@ -4,9 +4,10 @@ export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
+  attachments?: Array<{ filename: string; content: string }>;
 }
 
-export async function sendEmail({ to, subject, html }: EmailPayload) {
+export async function sendEmail({ to, subject, html, attachments }: EmailPayload) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     if (process.env.NODE_ENV === 'production') {
@@ -23,6 +24,7 @@ export async function sendEmail({ to, subject, html }: EmailPayload) {
       to,
       subject,
       html,
+      attachments,
     });
     const apiError = (result as typeof result & { error?: { message?: string } }).error;
     if (apiError) {
@@ -47,10 +49,12 @@ function escapeHtml(value: string): string {
 
 // Email templates
 export const emailTemplates = {
-  bookingConfirmation: (familyName: string, date: string, time: string, cancellationLink: string) => `
+  bookingConfirmation: (familyName: string, date: string, time: string, cancellationLink: string, calendarLink: string) => `
     <h2>Booking Confirmed</h2>
     <p>Hello ${escapeHtml(familyName)},</p>
     <p>Your Gaushala visit is confirmed for <strong>${escapeHtml(date)} at ${escapeHtml(time)}</strong>.</p>
+    <p><a href="${escapeHtml(calendarLink)}">Add to Google Calendar</a></p>
+    <p>A calendar invitation is also attached for Apple Calendar, Outlook, and other calendar apps.</p>
     <p><a href="${escapeHtml(cancellationLink)}">Cancel Booking</a></p>
   `,
   

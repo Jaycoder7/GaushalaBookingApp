@@ -15,6 +15,7 @@ export interface BookingResponse {
   status: string;
   cancellationToken: string;
   cancellationLink: string;
+  calendarLink: string;
 }
 
 export interface BookingDetails {
@@ -28,6 +29,7 @@ export interface BookingDetails {
   slotTime: string;
   slotEndTime?: string;
   status: string;
+  calendarLink?: string;
 }
 
 export async function createBooking(data: BookingRequest): Promise<BookingResponse> {

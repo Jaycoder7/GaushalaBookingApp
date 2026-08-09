@@ -62,11 +62,22 @@ async function executeJob(job: BackgroundJobRow) {
     return;
   }
 
-  const { to, subject, html } = job.payload;
+  const { to, subject, html, attachments } = job.payload;
   if (typeof to !== 'string' || typeof subject !== 'string' || typeof html !== 'string') {
     throw new Error('Email job payload is invalid');
   }
-  await sendEmail({ to, subject, html });
+  const validatedAttachments = Array.isArray(attachments)
+    ? attachments.map(attachment => {
+      if (
+        !attachment || typeof attachment !== 'object' ||
+        typeof attachment.filename !== 'string' || typeof attachment.content !== 'string'
+      ) {
+        throw new Error('Email attachment payload is invalid');
+      }
+      return { filename: attachment.filename, content: attachment.content };
+    })
+    : undefined;
+  await sendEmail({ to, subject, html, attachments: validatedAttachments });
 }
 
 async function completeJob(jobId: string) {

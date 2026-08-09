@@ -96,6 +96,11 @@ export default function CancelPage() {
                   >
                     {cancelling ? 'Cancelling…' : 'Cancel this visit'}
                   </button>
+                  {booking.calendarLink && (
+                    <a href={booking.calendarLink} target="_blank" rel="noreferrer" className="inline-flex w-full justify-center rounded-xl bg-saffron-500 px-5 py-3 font-bold text-white">
+                      Add to Google Calendar
+                    </a>
+                  )}
                 </>
               )}
               {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}

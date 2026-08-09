@@ -28,6 +28,7 @@ test('public booking flow confirms a reservation', async ({ page }) => {
       status: 'confirmed',
       cancellationToken: '00000000-0000-4000-8000-000000000003',
       cancellationLink: '/cancel/00000000-0000-4000-8000-000000000003',
+      calendarLink: 'https://calendar.google.com/calendar/render?action=TEMPLATE',
     }),
   }));
   await page.goto('/');
@@ -39,4 +40,5 @@ test('public booking flow confirms a reservation', async ({ page }) => {
   await page.getByLabel('Email').fill('visitor@example.com');
   await page.getByRole('button', { name: 'Confirm booking' }).click();
   await expect(page.getByText('Booking confirmed')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute('href', /calendar\.google\.com/);
 });
