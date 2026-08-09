@@ -1,89 +1,27 @@
-# Database Schema
+# Database
 
-## Tables
+PostgreSQL is the source of truth. The executable schema is
+`apps/backend/src/database/migrations/01_init.sql`.
 
-### admin_users
-```sql
-CREATE TABLE admin_users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  google_account_email VARCHAR(255) UNIQUE NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
+## Main tables
 
-### slot_templates
-```sql
-CREATE TABLE slot_templates (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  days_of_week INT[] NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  slot_length_minutes INT NOT NULL,
-  family_capacity_per_slot INT NOT NULL DEFAULT 6,
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
+- `admin_users`: the whitelisted Google account seen by the application.
+- `slot_templates`: weekly opening days, hours, slot duration, and family capacity.
+- `slots`: generated dated availability, booking count, block state, and Calendar event ID.
+- `bookings`: visitor contact details, headcount, status, and cancellation token.
 
-### slots
-```sql
-CREATE TABLE slots (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  template_id UUID REFERENCES slot_templates(id) ON DELETE SET NULL,
-  date DATE NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  family_capacity INT NOT NULL,
-  family_bookings_count INT DEFAULT 0,
-  status VARCHAR(50) DEFAULT 'open',
-  google_calendar_event_id VARCHAR(255),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(date, start_time, end_time)
-);
-
-CREATE INDEX idx_slots_date ON slots(date);
-CREATE INDEX idx_slots_status ON slots(status);
-```
-
-### bookings
-```sql
-CREATE TABLE bookings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slot_id UUID NOT NULL REFERENCES slots(id) ON DELETE RESTRICT,
-  family_name VARCHAR(255) NOT NULL,
-  phone VARCHAR(20) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  headcount INT NOT NULL CHECK (headcount >= 1 AND headcount <= 6),
-  note TEXT,
-  status VARCHAR(50) DEFAULT 'confirmed',
-  cancellation_token UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
-  created_at TIMESTAMP DEFAULT NOW(),
-  cancelled_at TIMESTAMP,
-  UNIQUE(slot_id, phone),
-  UNIQUE(slot_id, email)
-);
-
-CREATE INDEX idx_bookings_slot_id ON bookings(slot_id);
-CREATE INDEX idx_bookings_status ON bookings(status);
-CREATE INDEX idx_bookings_phone ON bookings(phone);
-CREATE INDEX idx_bookings_email ON bookings(email);
-CREATE INDEX idx_bookings_cancellation_token ON bookings(cancellation_token);
-```
+Confirmed bookings are unique by phone and email within a slot. Partial unique
+indexes allow a visitor to book the same slot again only after the earlier
+booking has been cancelled. Slot capacity is recalculated inside the same
+database transaction as every create or status change.
 
 ## Migrations
 
-Migrations are in `apps/backend/src/migrations/`.
+From the repository root:
 
-Run migrations:
 ```bash
-cd apps/backend
-npm run migrate
+npm run migrate --workspace=gaushala-backend
 ```
 
-Create new migration:
-```bash
-npm run migration:create -- description_here
-```
+The initial migration is idempotent for a new database and seeds the default
+Monday–Saturday, 9:00–17:00 schedule when no schedule exists.

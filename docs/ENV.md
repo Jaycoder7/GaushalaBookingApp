@@ -5,11 +5,14 @@
 ```bash
 # Database
 DATABASE_URL=postgresql://gaushala:gaushala_dev_password@localhost:5432/gaushala_dev
+# On Vercel, the Supabase integration supplies POSTGRES_URL automatically.
+# DATABASE_POOL_MAX=5
 
 # Server
 NODE_ENV=development
 PORT=5000
 CORS_ORIGIN=http://localhost:3000
+APP_URL=http://localhost:3000
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your_client_id_here
@@ -18,10 +21,13 @@ GOOGLE_ADMIN_EMAIL=admin@gaushala.com (whitelist)
 
 # Google Calendar
 GOOGLE_CALENDAR_ID=primary
+GOOGLE_CALENDAR_TIMEZONE=America/New_York
+GOOGLE_CALENDAR_REFRESH_TOKEN=your_refresh_token_here (NEVER commit this)
 
 # Resend Email
 RESEND_API_KEY=your_api_key_here (NEVER commit this)
 RESEND_FROM_EMAIL=noreply@gaushala.com
+ADMIN_NOTIFICATION_EMAIL=admin@gaushala.com
 
 # SMS (placeholder - integrate later)
 SMS_PROVIDER=stub
@@ -39,21 +45,19 @@ RATE_LIMIT_MAX_REQUESTS=10
 JWT_SECRET=your_jwt_secret_here (NEVER commit this)
 ```
 
-## Frontend (`apps/frontend/.env.local`)
+## Frontend (`.env.local`)
 
 ```bash
 # API
-REACT_APP_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:5000/api
 
 # Google OAuth
-REACT_APP_GOOGLE_CLIENT_ID=your_client_id_here
-REACT_APP_GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
-
+VITE_GOOGLE_CLIENT_ID=your_client_id_here
 # hCaptcha
-REACT_APP_HCAPTCHA_SITE_KEY=your_site_key_here
+VITE_HCAPTCHA_SITE_KEY=your_site_key_here
 
 # Environment
-REACT_APP_ENV=development
+VITE_APP_ENV=development
 ```
 
 ## Important Security Notes
@@ -64,3 +68,4 @@ REACT_APP_ENV=development
 - ✅ Frontend only needs public keys (hCaptcha site key, Google Client ID)
 - ✅ Store secrets in CI/CD provider (GitHub Secrets) for production
 - ✅ Use environment-specific env files for staging/production
+- ✅ Use a long, randomly generated `JWT_SECRET` in production

@@ -34,9 +34,12 @@ lerna-debug.log*
 # Testing
 .coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
 # Docker
 .env.docker
 
 # Database
 *.sql
+!apps/backend/src/database/migrations/*.sql
