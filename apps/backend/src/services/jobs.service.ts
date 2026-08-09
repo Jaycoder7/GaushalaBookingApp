@@ -124,3 +124,15 @@ export async function processBackgroundJobs(limit = 5) {
   }
   return { completed, failed };
 }
+
+/**
+ * Start durable job processing without making the HTTP request that queued the
+ * work wait for email or calendar providers. The job has already been stored
+ * in Postgres, so a provider timeout must not turn a successful booking into a
+ * 500 response.
+ */
+export function dispatchBackgroundJobs(limit = 5): void {
+  void processBackgroundJobs(limit).catch(error => {
+    console.error('Background job dispatch failed:', error);
+  });
+}

@@ -4,7 +4,7 @@ import { query, withTransaction } from '../database/connection';
 import { HttpError } from '../errors';
 import { adminAuthMiddleware } from '../middleware/auth.middleware';
 import { authenticateGoogleCredential, generateToken } from '../services/auth.service';
-import { enqueueBackgroundJob, processBackgroundJobs } from '../services/jobs.service';
+import { dispatchBackgroundJobs, enqueueBackgroundJob } from '../services/jobs.service';
 import { ensureSlotsGenerated, publicSlot, recalculateSlot, SlotRow } from '../services/slots.service';
 
 const router = express.Router();
@@ -209,8 +209,8 @@ router.post('/bookings', async (req, res, next) => {
         end_time: slot.end_time,
       } as AdminBookingRow;
     });
-    await processBackgroundJobs(1);
     res.status(201).json(serializeBooking(booking));
+    dispatchBackgroundJobs(1);
   } catch (error) {
     next(error);
   }
@@ -247,8 +247,8 @@ router.patch('/bookings/:bookingId', async (req, res, next) => {
         end_time: row.end_time,
       };
     });
-    await processBackgroundJobs(1);
     res.json(serializeBooking(booking));
+    dispatchBackgroundJobs(1);
   } catch (error: any) {
     if (error?.code === '23505') {
       next(new HttpError(409, 'DUPLICATE_BOOKING', 'That phone number or email already has a confirmed booking for this time.'));
@@ -288,8 +288,8 @@ router.patch('/bookings/:bookingId/status', async (req, res, next) => {
       });
       return { ...row, status };
     });
-    await processBackgroundJobs(1);
     res.json(serializeBooking(booking));
+    dispatchBackgroundJobs(1);
   } catch (error: any) {
     if (error?.code === '23505') {
       next(new HttpError(409, 'DUPLICATE_BOOKING', 'Restoring this booking would create a duplicate.'));

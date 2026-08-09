@@ -7,7 +7,7 @@ import { verifyCaptcha } from '../services/captcha.service';
 import { bookingPhoneRateLimitKey } from '../services/booking-policy.service';
 import { buildGoogleCalendarUrl, calendarAttachment, VisitorCalendarEvent } from '../services/calendar-invite.service';
 import { emailTemplates } from '../services/email.service';
-import { enqueueBackgroundJob, processBackgroundJobs } from '../services/jobs.service';
+import { dispatchBackgroundJobs, enqueueBackgroundJob } from '../services/jobs.service';
 import { databaseRateLimit } from '../services/rate-limit.service';
 import { sendSMS } from '../services/sms.service';
 import { recalculateSlot } from '../services/slots.service';
@@ -174,8 +174,6 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       to: booking.phone,
       message: `Your Gaushala visit is confirmed for ${booking.date} at ${booking.start_time.slice(0, 5)}.`,
     }).catch(error => console.error('SMS notification failed:', error));
-    await processBackgroundJobs(1);
-
     res.status(201).json({
       id: booking.id,
       status: booking.status,
@@ -183,7 +181,12 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       cancellationLink,
       calendarLink,
     });
-  } catch (error) {
+    dispatchBackgroundJobs(1);
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      next(new HttpError(409, 'DUPLICATE_BOOKING', 'This phone number or email already has a booking for that slot.'));
+      return;
+    }
     next(error);
   }
 });
@@ -273,7 +276,7 @@ router.delete('/:cancellationToken', bookingLimiter, async (req, res, next) => {
         to: result.booking.phone,
         message: `Your Gaushala visit for ${result.booking.date} at ${result.booking.start_time.slice(0, 5)} has been cancelled.`,
       }).catch(error => console.error('SMS notification failed:', error));
-      await processBackgroundJobs(1);
+      dispatchBackgroundJobs(1);
     }
     res.json({
       ...bookingDetails(result.booking),
