@@ -4,6 +4,7 @@ import { withTransaction } from '../database/connection';
 import { HttpError } from '../errors';
 import { validateBookingInput } from '../middleware/validation.middleware';
 import { verifyCaptcha } from '../services/captcha.service';
+import { bookingPhoneRateLimitKey } from '../services/booking-policy.service';
 import { buildGoogleCalendarUrl, calendarAttachment, VisitorCalendarEvent } from '../services/calendar-invite.service';
 import { emailTemplates } from '../services/email.service';
 import { enqueueBackgroundJob, processBackgroundJobs } from '../services/jobs.service';
@@ -41,8 +42,8 @@ const phoneLimiter = databaseRateLimit({
   scope: 'booking-phone',
   windowMs: 60 * 60 * 1000,
   limit: 5,
-  key: req => typeof req.body?.phone === 'string' ? req.body.phone.trim() : 'invalid',
-  message: 'Too many bookings from this phone number. Please try again later.',
+  key: req => bookingPhoneRateLimitKey(req.body?.slotId, req.body?.phone),
+  message: 'Too many booking attempts for this phone number and time slot. Please try again later.',
 });
 
 function visitorCalendarEvent(row: BookingRow, cancellationLink: string, cancelled = false): VisitorCalendarEvent {
