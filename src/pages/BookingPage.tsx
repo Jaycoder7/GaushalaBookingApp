@@ -1,7 +1,7 @@
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 import axios from 'axios';
 import { addDays, format, parseISO } from 'date-fns';
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createBooking, BookingResponse } from '../services/bookings.service';
 import { getAvailableSlots, Slot } from '../services/slots.service';
@@ -32,6 +32,12 @@ function apiError(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
+async function fetchBookingWindowSlots(): Promise<Slot[]> {
+  const start = format(new Date(), 'yyyy-MM-dd');
+  const end = format(addDays(new Date(), 29), 'yyyy-MM-dd');
+  return getAvailableSlots(start, end);
+}
+
 export default function BookingPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
@@ -47,25 +53,24 @@ export default function BookingPage() {
     ? undefined
     : import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined;
 
-  useEffect(() => {
-    const loadSlots = async () => {
-      setLoadingSlots(true);
-      setError('');
-      try {
-        const start = format(new Date(), 'yyyy-MM-dd');
-        const end = format(addDays(new Date(), 29), 'yyyy-MM-dd');
-        const available = await getAvailableSlots(start, end);
-        setSlots(available);
-        const firstOpen = available.find(slot => slot.status === 'open');
-        if (firstOpen) setSelectedDate(firstOpen.date);
-      } catch (loadError) {
-        setError(apiError(loadError));
-      } finally {
-        setLoadingSlots(false);
-      }
-    };
-    void loadSlots();
+  const refreshSlots = useCallback(async () => {
+    setLoadingSlots(true);
+    try {
+      const available = await fetchBookingWindowSlots();
+      setSlots(available);
+      setSelectedDate(currentDate => {
+        if (currentDate && available.some(slot => slot.date === currentDate)) return currentDate;
+        return available.find(slot => slot.status === 'open')?.date || '';
+      });
+    } finally {
+      setLoadingSlots(false);
+    }
   }, []);
+
+  useEffect(() => {
+    setError('');
+    void refreshSlots().catch(loadError => setError(apiError(loadError)));
+  }, [refreshSlots]);
 
   const dates = useMemo(
     () => Array.from(new Set(slots.map(slot => slot.date))),
@@ -102,12 +107,27 @@ export default function BookingPage() {
       setSuccess(response);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (submitError) {
-      setError(apiError(submitError));
+      const message = apiError(submitError);
+      if (axios.isAxiosError(submitError) && submitError.response?.data?.code === 'DUPLICATE_BOOKING') {
+        await refreshSlots().catch(() => undefined);
+      }
+      setError(message);
       captchaRef.current?.resetCaptcha();
       setCaptchaToken('');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const startAnotherBooking = async () => {
+    setSuccess(null);
+    setSelectedSlotId('');
+    setError('');
+    setCaptchaToken('');
+    setForm(current => ({ ...current, headcount: 1, note: '' }));
+    captchaRef.current?.resetCaptcha();
+    await refreshSlots().catch(loadError => setError(apiError(loadError)));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (success && selectedSlot) {
@@ -142,6 +162,13 @@ export default function BookingPage() {
             >
               View or cancel this booking
             </a>
+            <button
+              type="button"
+              onClick={() => void startAnotherBooking()}
+              className="inline-flex w-full justify-center rounded-xl border border-earth-100 px-5 py-3 font-semibold text-earth-700 transition hover:border-saffron-500 hover:text-saffron-700"
+            >
+              Book another visit
+            </button>
           </div>
         </section>
       </main>
@@ -235,6 +262,11 @@ export default function BookingPage() {
                 })}
               </div>
               </div>
+              {selectedSlot && (
+                <p className="mt-4 rounded-xl bg-saffron-50 px-4 py-3 text-sm font-semibold text-saffron-800">
+                  Selected: {format(parseISO(selectedSlot.date), 'EEEE, MMMM d')} · {formatSlotTime(selectedSlot.startTime, selectedSlot.endTime)}
+                </p>
+              )}
             </>
           )}
         </section>
