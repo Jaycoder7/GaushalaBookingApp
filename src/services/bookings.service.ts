@@ -15,7 +15,8 @@ export interface BookingResponse {
   status: string;
   cancellationToken: string;
   cancellationLink: string;
-  calendarLink: string;
+  calendarLink?: string;
+  message?: string;
 }
 
 export interface BookingDetails {

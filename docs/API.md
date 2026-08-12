@@ -64,11 +64,16 @@ Body:
 Response:
 {
   "id": "uuid",
-  "status": "confirmed",
+  "status": "pending",
   "cancellationToken": "uuid",
-  "cancellationLink": "https://app.com/cancel/uuid"
+  "cancellationLink": "https://app.com/cancel/uuid",
+  "message": "Your visit request is awaiting admin approval."
 }
 ```
+
+New public bookings reserve one family spot with `pending` status. The visitor
+receives the confirmation email and calendar invitation only after an admin
+approves the request.
 
 #### Get Booking (via cancellation token)
 ```
@@ -107,7 +112,7 @@ GET /api/admin/summary
 
 #### List Bookings
 ```
-GET /api/admin/bookings?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&status=confirmed
+GET /api/admin/bookings?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&status=pending
 
 Response:
 {
@@ -119,7 +124,7 @@ Response:
       "headcount": 4,
       "slotDate": "2024-07-25",
       "slotTime": "09:00 - 10:00",
-      "status": "confirmed",
+      "status": "pending",
       "createdAt": "2024-07-24T10:00:00Z"
     }
   ]
@@ -148,8 +153,12 @@ Body:
 ```
 PATCH /api/admin/bookings/{bookingId}/status
 
-Body: { "status": "confirmed" | "cancelled" | "no_show" }
+Body: { "status": "pending" | "confirmed" | "rejected" | "cancelled" | "no_show" }
 ```
+
+Changing a pending booking to `confirmed` approves it and queues its visitor
+confirmation email, calendar invitation, calendar sync, and SMS. Changing it
+to `rejected` releases the reserved family spot and queues a rejection email.
 POST /api/admin/slot-templates
 
 Body:

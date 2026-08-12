@@ -132,13 +132,16 @@ export default function BookingPage() {
   };
 
   if (success && selectedSlot) {
+    const isPending = success.status === 'pending';
     return (
       <main className="min-h-screen bg-earth-50 px-4 py-12 sm:py-20">
         <section className="mx-auto max-w-xl overflow-hidden rounded-3xl bg-white shadow-soft">
-          <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-8 py-10 text-white">
+          <div className={`bg-gradient-to-br px-8 py-10 text-white ${isPending ? 'from-blue-600 to-blue-700' : 'from-emerald-600 to-emerald-700'}`}>
             <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-3xl">✓</div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-100">Booking confirmed</p>
-            <h1 className="text-3xl font-bold">We look forward to welcoming you.</h1>
+            <p className={`mb-2 text-sm font-semibold uppercase tracking-[0.2em] ${isPending ? 'text-blue-100' : 'text-emerald-100'}`}>
+              {isPending ? 'Request received' : 'Booking confirmed'}
+            </p>
+            <h1 className="text-3xl font-bold">{isPending ? 'Awaiting admin approval.' : 'We look forward to welcoming you.'}</h1>
           </div>
           <div className="space-y-6 p-8">
             <div className="rounded-2xl border border-earth-100 bg-earth-50 p-5">
@@ -147,21 +150,25 @@ export default function BookingPage() {
               <p className="mt-1 text-sm text-earth-700">{form.headcount} {form.headcount === 1 ? 'visitor' : 'visitors'} · {form.familyName}</p>
             </div>
             <p className="text-sm leading-6 text-earth-700">
-              A confirmation has been sent to <strong>{form.email}</strong>. Keep the cancellation link below in case your plans change.
+              {isPending
+                ? <>We sent a receipt to <strong>{form.email}</strong>. You will receive a confirmation email and calendar invitation after an administrator approves your request.</>
+                : <>A confirmation has been sent to <strong>{form.email}</strong>. Keep the cancellation link below in case your plans change.</>}
             </p>
-            <a
-              href={success.calendarLink}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex w-full justify-center rounded-xl bg-saffron-500 px-5 py-3 font-semibold text-white transition hover:bg-saffron-600"
-            >
-              Add to Google Calendar
-            </a>
+            {success.calendarLink && (
+              <a
+                href={success.calendarLink}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full justify-center rounded-xl bg-saffron-500 px-5 py-3 font-semibold text-white transition hover:bg-saffron-600"
+              >
+                Add to Google Calendar
+              </a>
+            )}
             <a
               href={success.cancellationLink}
               className="inline-flex w-full justify-center rounded-xl border border-earth-100 px-5 py-3 font-semibold text-saffron-700 transition hover:bg-saffron-50"
             >
-              View or cancel this booking
+              {isPending ? 'View or cancel this request' : 'View or cancel this booking'}
             </a>
             <button
               type="button"

@@ -8,7 +8,7 @@ export interface AdminBooking {
   email: string;
   headcount: number;
   note?: string;
-  status: 'confirmed' | 'cancelled' | 'no_show';
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'no_show';
   slotId: string;
   slotDate: string;
   startTime: string;
@@ -21,6 +21,7 @@ export interface AdminSummary {
   todayVisitors: number;
   upcomingBookings: number;
   cancellations: number;
+  pendingApprovals: number;
 }
 
 export interface SlotTemplate {

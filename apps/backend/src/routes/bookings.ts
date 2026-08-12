@@ -23,7 +23,7 @@ interface BookingRow extends QueryResultRow {
   email: string;
   headcount: number;
   note: string | null;
-  status: 'confirmed' | 'cancelled' | 'no_show';
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'no_show';
   slot_id: string;
   date: string;
   start_time: string;
@@ -73,7 +73,9 @@ function bookingDetails(row: BookingRow) {
     slotTime: row.start_time.slice(0, 5),
     slotEndTime: row.end_time.slice(0, 5),
     status: row.status,
-    calendarLink: buildGoogleCalendarUrl(visitorCalendarEvent(row, cancellationLink)),
+    ...(row.status === 'confirmed'
+      ? { calendarLink: buildGoogleCalendarUrl(visitorCalendarEvent(row, cancellationLink)) }
+      : {}),
   };
 }
 
@@ -115,7 +117,7 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
         `SELECT 1
            FROM bookings
           WHERE slot_id = $1
-            AND status = 'confirmed'
+            AND status IN ('pending', 'confirmed')
             AND (phone = $2 OR LOWER(email) = LOWER($3))
           LIMIT 1`,
         [slotId, phone.trim(), email.trim()]
@@ -125,8 +127,8 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       }
 
       const inserted = await client.query<BookingRow>(
-        `INSERT INTO bookings (slot_id, family_name, phone, email, headcount, note)
-         VALUES ($1, $2, $3, LOWER($4), $5, $6)
+        `INSERT INTO bookings (slot_id, family_name, phone, email, headcount, note, status)
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, 'pending')
          RETURNING id, cancellation_token, family_name, phone, email, headcount,
                    note, status, slot_id`,
         [
@@ -146,40 +148,28 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
         end_time: slot.end_time,
       } as BookingRow;
       const cancellationLink = `${appUrl}/cancel/${row.cancellation_token}`;
-      const calendarEvent = visitorCalendarEvent(row, cancellationLink);
-      const calendarLink = buildGoogleCalendarUrl(calendarEvent);
       await enqueueBackgroundJob(client, 'email', {
         to: row.email,
-        subject: 'Your Gaushala visit is confirmed',
-        html: emailTemplates.bookingConfirmation(row.family_name, row.date, row.start_time.slice(0, 5), cancellationLink, calendarLink),
-        attachments: [calendarAttachment(calendarEvent)],
-      }, { dedupeKey: `booking-confirmation:${row.id}`, maxAttempts: 20 });
+        subject: 'Your Gaushala visit request was received',
+        html: emailTemplates.bookingPending(row.family_name, row.date, row.start_time.slice(0, 5), cancellationLink),
+      }, { dedupeKey: `booking-pending:${row.id}`, maxAttempts: 20 });
       if (process.env.ADMIN_NOTIFICATION_EMAIL) {
         await enqueueBackgroundJob(client, 'email', {
           to: process.env.ADMIN_NOTIFICATION_EMAIL,
-          subject: 'New Gaushala visit booking',
+          subject: 'Gaushala visit request needs approval',
           html: emailTemplates.adminNotification(row.family_name, row.phone, row.headcount, row.date, row.start_time.slice(0, 5)),
         }, { dedupeKey: `booking-admin:${row.id}`, maxAttempts: 20 });
       }
-      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
-        dedupeKey: `calendar:${row.slot_id}`,
-        maxAttempts: 100,
-      });
       return row;
     });
 
     const cancellationLink = `${appUrl}/cancel/${booking.cancellation_token}`;
-    const calendarLink = buildGoogleCalendarUrl(visitorCalendarEvent(booking, cancellationLink));
-    void sendSMS({
-      to: booking.phone,
-      message: `Your Gaushala visit is confirmed for ${booking.date} at ${booking.start_time.slice(0, 5)}.`,
-    }).catch(error => console.error('SMS notification failed:', error));
     res.status(201).json({
       id: booking.id,
       status: booking.status,
       cancellationToken: booking.cancellation_token,
       cancellationLink,
-      calendarLink,
+      message: 'Your visit request is awaiting admin approval.',
     });
     dispatchBackgroundJobs(1);
   } catch (error: any) {
@@ -247,12 +237,13 @@ router.delete('/:cancellationToken', bookingLimiter, async (req, res, next) => {
       const html = emailTemplates.cancellationConfirmation(booking.family_name, booking.date, booking.start_time.slice(0, 5));
       const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
       const cancellationLink = `${appUrl}/cancel/${booking.cancellation_token}`;
+      const wasConfirmed = row.status === 'confirmed';
       const cancelledEvent = visitorCalendarEvent(booking, cancellationLink, true);
       await enqueueBackgroundJob(client, 'email', {
         to: booking.email,
         subject,
         html,
-        attachments: [calendarAttachment(cancelledEvent)],
+        ...(wasConfirmed ? { attachments: [calendarAttachment(cancelledEvent)] } : {}),
       }, {
         dedupeKey: `booking-cancelled:${booking.id}`,
         maxAttempts: 20,
@@ -264,10 +255,12 @@ router.delete('/:cancellationToken', bookingLimiter, async (req, res, next) => {
           html,
         }, { dedupeKey: `booking-cancelled-admin:${booking.id}`, maxAttempts: 20 });
       }
-      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: booking.slot_id }, {
-        dedupeKey: `calendar:${booking.slot_id}`,
-        maxAttempts: 100,
-      });
+      if (wasConfirmed) {
+        await enqueueBackgroundJob(client, 'calendar_sync', { slotId: booking.slot_id }, {
+          dedupeKey: `calendar:${booking.slot_id}`,
+          maxAttempts: 100,
+        });
+      }
       return { booking, cancelledNow: true };
     });
 

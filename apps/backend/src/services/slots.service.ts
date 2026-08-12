@@ -102,7 +102,7 @@ export async function recalculateSlot(client: PoolClient, slotId: string): Promi
        FROM (
          SELECT $1::uuid AS slot_id, COUNT(*)::int AS total
            FROM bookings
-          WHERE slot_id = $1 AND status = 'confirmed'
+          WHERE slot_id = $1 AND status IN ('pending', 'confirmed')
        ) counts
       WHERE s.id = counts.slot_id`,
     [slotId]

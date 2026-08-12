@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   email VARCHAR(255) NOT NULL,
   headcount INT NOT NULL CHECK (headcount BETWEEN 1 AND 6),
   note TEXT,
-  status VARCHAR(20) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled', 'no_show')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected', 'cancelled', 'no_show')),
   cancellation_token UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -59,13 +59,13 @@ CREATE INDEX IF NOT EXISTS idx_bookings_slot_status ON bookings(slot_id, status)
 CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_cancellation_token ON bookings(cancellation_token);
 
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_confirmed_phone_per_slot
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_phone_per_slot
   ON bookings(slot_id, phone)
-  WHERE status = 'confirmed';
+  WHERE status IN ('pending', 'confirmed');
 
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_confirmed_email_per_slot
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_email_per_slot
   ON bookings(slot_id, LOWER(email))
-  WHERE status = 'confirmed';
+  WHERE status IN ('pending', 'confirmed');
 
 INSERT INTO slot_templates (
   days_of_week,

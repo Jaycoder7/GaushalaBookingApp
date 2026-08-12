@@ -4,7 +4,10 @@ import { query, withTransaction } from '../database/connection';
 import { HttpError } from '../errors';
 import { adminAuthMiddleware } from '../middleware/auth.middleware';
 import { authenticateGoogleCredential, generateToken } from '../services/auth.service';
+import { buildGoogleCalendarUrl, calendarAttachment, VisitorCalendarEvent } from '../services/calendar-invite.service';
+import { emailTemplates } from '../services/email.service';
 import { dispatchBackgroundJobs, enqueueBackgroundJob } from '../services/jobs.service';
+import { sendSMS } from '../services/sms.service';
 import { ensureSlotsGenerated, publicSlot, recalculateSlot, SlotRow } from '../services/slots.service';
 
 const router = express.Router();
@@ -13,6 +16,7 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 interface AdminBookingRow extends QueryResultRow {
   id: string;
+  cancellation_token: string;
   family_name: string;
   phone: string;
   email: string;
@@ -24,6 +28,18 @@ interface AdminBookingRow extends QueryResultRow {
   start_time: string;
   end_time: string;
   created_at: Date;
+}
+
+function visitorCalendarEvent(row: AdminBookingRow, cancellationLink: string): VisitorCalendarEvent {
+  return {
+    bookingId: row.id,
+    familyName: row.family_name,
+    date: row.slot_date,
+    startTime: row.start_time.slice(0, 5),
+    endTime: row.end_time.slice(0, 5),
+    headcount: row.headcount,
+    cancellationLink,
+  };
 }
 
 function serializeBooking(row: AdminBookingRow) {
@@ -72,7 +88,7 @@ function bookingFilters(queryParams: express.Request['query']) {
   };
   if (typeof queryParams.startDate === 'string' && DATE.test(queryParams.startDate)) add('s.date >= ?', queryParams.startDate);
   if (typeof queryParams.endDate === 'string' && DATE.test(queryParams.endDate)) add('s.date <= ?', queryParams.endDate);
-  if (typeof queryParams.status === 'string' && ['confirmed', 'cancelled', 'no_show'].includes(queryParams.status)) {
+  if (typeof queryParams.status === 'string' && ['pending', 'confirmed', 'rejected', 'cancelled', 'no_show'].includes(queryParams.status)) {
     add('b.status = ?', queryParams.status);
   }
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
@@ -107,7 +123,8 @@ router.get('/summary', async (_req, res, next) => {
          COUNT(*) FILTER (WHERE s.date = CURRENT_DATE AND b.status = 'confirmed')::int AS today_bookings,
          COALESCE(SUM(b.headcount) FILTER (WHERE s.date = CURRENT_DATE AND b.status = 'confirmed'), 0)::int AS today_visitors,
          COUNT(*) FILTER (WHERE s.date >= CURRENT_DATE AND b.status = 'confirmed')::int AS upcoming_bookings,
-         COUNT(*) FILTER (WHERE b.status = 'cancelled')::int AS cancellations
+         COUNT(*) FILTER (WHERE b.status = 'cancelled')::int AS cancellations,
+         COUNT(*) FILTER (WHERE b.status = 'pending')::int AS pending_approvals
        FROM bookings b
        JOIN slots s ON s.id = b.slot_id`
     );
@@ -117,6 +134,7 @@ router.get('/summary', async (_req, res, next) => {
       todayVisitors: row.today_visitors,
       upcomingBookings: row.upcoming_bookings,
       cancellations: row.cancellations,
+      pendingApprovals: row.pending_approvals,
     });
   } catch (error) {
     next(error);
@@ -183,7 +201,7 @@ router.post('/bookings', async (req, res, next) => {
       }
       const duplicate = await client.query(
         `SELECT 1 FROM bookings
-          WHERE slot_id = $1 AND status = 'confirmed'
+          WHERE slot_id = $1 AND status IN ('pending', 'confirmed')
             AND (phone = $2 OR LOWER(email) = LOWER($3))`,
         [slotId, details.phone, details.email]
       );
@@ -191,8 +209,8 @@ router.post('/bookings', async (req, res, next) => {
         throw new HttpError(409, 'DUPLICATE_BOOKING', 'This visitor already has a booking for that time.');
       }
       const inserted = await client.query<AdminBookingRow>(
-        `INSERT INTO bookings (slot_id, family_name, phone, email, headcount, note)
-         VALUES ($1, $2, $3, LOWER($4), $5, $6)
+        `INSERT INTO bookings (slot_id, family_name, phone, email, headcount, note, status)
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, 'confirmed')
          RETURNING id, family_name, phone, email, headcount, note, status,
                    slot_id, created_at`,
         [slotId, details.familyName, details.phone, details.email, details.headcount, details.note]
@@ -261,8 +279,8 @@ router.patch('/bookings/:bookingId', async (req, res, next) => {
 router.patch('/bookings/:bookingId/status', async (req, res, next) => {
   try {
     const status = req.body?.status;
-    if (!['confirmed', 'cancelled', 'no_show'].includes(status)) {
-      throw new HttpError(400, 'VALIDATION_ERROR', 'Status must be confirmed, cancelled, or no_show.');
+    if (!['pending', 'confirmed', 'rejected', 'cancelled', 'no_show'].includes(status)) {
+      throw new HttpError(400, 'VALIDATION_ERROR', 'Status must be pending, confirmed, rejected, cancelled, or no_show.');
     }
     const booking = await withTransaction(async client => {
       const existing = await client.query<AdminBookingRow>(
@@ -273,22 +291,57 @@ router.patch('/bookings/:bookingId/status', async (req, res, next) => {
       );
       const row = existing.rows[0];
       if (!row) throw new HttpError(404, 'BOOKING_NOT_FOUND', 'Booking not found.');
-      await client.query(
+      const updated = await client.query<AdminBookingRow>(
         `UPDATE bookings
             SET status = $1,
                 cancelled_at = CASE WHEN $1 = 'cancelled' THEN COALESCE(cancelled_at, NOW()) ELSE NULL END,
                 updated_at = NOW()
-          WHERE id = $2`,
+          WHERE id = $2
+          RETURNING *`,
         [status, row.id]
       );
       await recalculateSlot(client, row.slot_id);
-      await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
-        dedupeKey: `calendar:${row.slot_id}`,
-        maxAttempts: 100,
-      });
-      return { ...row, status };
+      const booking = {
+        ...updated.rows[0],
+        slot_date: row.slot_date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+      } as AdminBookingRow;
+
+      if (row.status === 'pending' && status === 'confirmed') {
+        const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
+        const cancellationLink = `${appUrl}/cancel/${booking.cancellation_token}`;
+        const calendarEvent = visitorCalendarEvent(booking, cancellationLink);
+        const calendarLink = buildGoogleCalendarUrl(calendarEvent);
+        await enqueueBackgroundJob(client, 'email', {
+          to: booking.email,
+          subject: 'Your Gaushala visit is confirmed',
+          html: emailTemplates.bookingConfirmation(booking.family_name, booking.slot_date, booking.start_time.slice(0, 5), cancellationLink, calendarLink),
+          attachments: [calendarAttachment(calendarEvent)],
+        }, { dedupeKey: `booking-confirmation:${booking.id}`, maxAttempts: 20 });
+      } else if (row.status === 'pending' && status === 'rejected') {
+        await enqueueBackgroundJob(client, 'email', {
+          to: booking.email,
+          subject: 'Update on your Gaushala visit request',
+          html: emailTemplates.bookingRejected(booking.family_name, booking.slot_date, booking.start_time.slice(0, 5)),
+        }, { dedupeKey: `booking-rejected:${booking.id}`, maxAttempts: 20 });
+      }
+
+      if (row.status === 'confirmed' || status === 'confirmed') {
+        await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
+          dedupeKey: `calendar:${row.slot_id}`,
+          maxAttempts: 100,
+        });
+      }
+      return { booking, approvedNow: row.status === 'pending' && status === 'confirmed' };
     });
-    res.json(serializeBooking(booking));
+    if (booking.approvedNow) {
+      void sendSMS({
+        to: booking.booking.phone,
+        message: `Your Gaushala visit is confirmed for ${booking.booking.slot_date} at ${booking.booking.start_time.slice(0, 5)}.`,
+      }).catch(error => console.error('SMS notification failed:', error));
+    }
+    res.json(serializeBooking(booking.booking));
     dispatchBackgroundJobs(1);
   } catch (error: any) {
     if (error?.code === '23505') {
@@ -396,7 +449,7 @@ router.post('/slot-templates', async (req, res, next) => {
         `DELETE FROM slots s
           WHERE s.date >= CURRENT_DATE
             AND NOT EXISTS (
-              SELECT 1 FROM bookings b WHERE b.slot_id = s.id AND b.status = 'confirmed'
+              SELECT 1 FROM bookings b WHERE b.slot_id = s.id AND b.status IN ('pending', 'confirmed')
             )`
       );
       return result.rows[0];

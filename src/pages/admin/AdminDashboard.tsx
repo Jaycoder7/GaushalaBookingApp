@@ -237,6 +237,7 @@ export default function AdminDashboard() {
     ['Today’s bookings', summary?.todayBookings ?? 0],
     ['Today’s visitors', summary?.todayVisitors ?? 0],
     ['Upcoming bookings', summary?.upcomingBookings ?? 0],
+    ['Pending approvals', summary?.pendingApprovals ?? 0],
     ['Cancellations', summary?.cancellations ?? 0],
   ];
 
@@ -256,7 +257,7 @@ export default function AdminDashboard() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
           {stats.map(([label, value]) => (
             <div key={label} className="rounded-2xl bg-white p-5 shadow-soft">
               <p className="text-sm text-earth-700">{label}</p>
@@ -303,7 +304,9 @@ export default function AdminDashboard() {
                   className="rounded-xl border border-earth-100 bg-white px-3 py-2 text-sm"
                 >
                   <option value="">All statuses</option>
+                  <option value="pending">Pending approval</option>
                   <option value="confirmed">Confirmed</option>
+                  <option value="rejected">Rejected</option>
                   <option value="cancelled">Cancelled</option>
                   <option value="no_show">No-show</option>
                 </select>
@@ -384,15 +387,20 @@ export default function AdminDashboard() {
                         <td className="px-5 py-4">{booking.headcount}</td>
                         <td className="px-5 py-4 capitalize">{booking.status.replace('_', ' ')}</td>
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-2"><select
-                            value={booking.status}
-                            onChange={event => void changeStatus(booking, event.target.value as AdminBooking['status'])}
-                            className="rounded-lg border border-earth-100 bg-white px-2 py-1.5"
-                          >
-                            <option value="confirmed">Confirmed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="no_show">No-show</option>
-                          </select>
+                          <div className="flex items-center gap-2">
+                          {booking.status === 'pending' ? <>
+                            <button type="button" onClick={() => void changeStatus(booking, 'confirmed')} className="rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white">Approve</button>
+                            <button type="button" onClick={() => void changeStatus(booking, 'rejected')} className="rounded-lg bg-red-50 px-3 py-1.5 font-bold text-red-700">Reject</button>
+                          </> : <select
+                              value={booking.status}
+                              onChange={event => void changeStatus(booking, event.target.value as AdminBooking['status'])}
+                              className="rounded-lg border border-earth-100 bg-white px-2 py-1.5"
+                            >
+                              <option value="confirmed">Confirmed</option>
+                              <option value="rejected">Rejected</option>
+                              <option value="cancelled">Cancelled</option>
+                              <option value="no_show">No-show</option>
+                            </select>}
                           <button type="button" onClick={() => setEditingBooking({ ...booking })} className="rounded-lg border border-earth-100 px-2 py-1.5 font-semibold">Edit</button></div>
                         </td>
                       </tr>

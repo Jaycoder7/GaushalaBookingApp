@@ -57,4 +57,25 @@ describe('public booking page', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('already has a booking for that slot');
     expect(getAvailableSlots).toHaveBeenCalledTimes(2);
   });
+
+  it('shows an awaiting-approval receipt without a calendar link for a new request', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createBooking).mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000002',
+      status: 'pending',
+      cancellationToken: '00000000-0000-4000-8000-000000000003',
+      cancellationLink: '/cancel/00000000-0000-4000-8000-000000000003',
+    });
+
+    render(<MemoryRouter><BookingPage /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /09:00 am - 10:00 am/i }));
+    await user.type(screen.getByLabelText('Family name'), 'Agrawal');
+    await user.type(screen.getByLabelText('Phone'), '7708332230');
+    await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
+    await user.click(screen.getByRole('button', { name: /confirm booking/i }));
+
+    expect(await screen.findByRole('heading', { name: /awaiting admin approval/i })).toBeVisible();
+    expect(screen.queryByRole('link', { name: /add to google calendar/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/confirmation email and calendar invitation after an administrator approves/i)).toBeVisible();
+  });
 });

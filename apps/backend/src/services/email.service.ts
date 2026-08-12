@@ -49,6 +49,14 @@ function escapeHtml(value: string): string {
 
 // Email templates
 export const emailTemplates = {
+  bookingPending: (familyName: string, date: string, time: string, cancellationLink: string) => `
+    <h2>Visit Request Received</h2>
+    <p>Hello ${escapeHtml(familyName)},</p>
+    <p>We received your request to visit the Gaushala on <strong>${escapeHtml(date)} at ${escapeHtml(time)}</strong>.</p>
+    <p>An administrator will review it. We will send a separate confirmation email and calendar invitation after it is approved.</p>
+    <p><a href="${escapeHtml(cancellationLink)}">Cancel Request</a></p>
+  `,
+
   bookingConfirmation: (familyName: string, date: string, time: string, cancellationLink: string, calendarLink: string) => `
     <h2>Booking Confirmed</h2>
     <p>Hello ${escapeHtml(familyName)},</p>
@@ -59,7 +67,7 @@ export const emailTemplates = {
   `,
   
   adminNotification: (familyName: string, phone: string, headcount: number, date: string, time: string) => `
-    <h2>New Booking</h2>
+    <h2>New Booking Request</h2>
     <p>Family: ${escapeHtml(familyName)}</p>
     <p>Phone: ${escapeHtml(phone)}</p>
     <p>Headcount: ${headcount}</p>
@@ -70,5 +78,12 @@ export const emailTemplates = {
     <h2>Booking Cancelled</h2>
     <p>Hello ${escapeHtml(familyName)},</p>
     <p>Your Gaushala visit for <strong>${escapeHtml(date)} at ${escapeHtml(time)}</strong> has been cancelled.</p>
+  `,
+
+  bookingRejected: (familyName: string, date: string, time: string) => `
+    <h2>Visit Request Not Approved</h2>
+    <p>Hello ${escapeHtml(familyName)},</p>
+    <p>Unfortunately, your Gaushala visit request for <strong>${escapeHtml(date)} at ${escapeHtml(time)}</strong> was not approved.</p>
+    <p>You are welcome to submit a request for another available visit time.</p>
   `,
 };
