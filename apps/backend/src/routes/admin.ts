@@ -293,8 +293,8 @@ router.patch('/bookings/:bookingId/status', async (req, res, next) => {
       if (!row) throw new HttpError(404, 'BOOKING_NOT_FOUND', 'Booking not found.');
       const updated = await client.query<AdminBookingRow>(
         `UPDATE bookings
-            SET status = $1,
-                cancelled_at = CASE WHEN $1 = 'cancelled' THEN COALESCE(cancelled_at, NOW()) ELSE NULL END,
+            SET status = $1::varchar(20),
+                cancelled_at = CASE WHEN $1::varchar(20) = 'cancelled' THEN COALESCE(cancelled_at, NOW()) ELSE NULL END,
                 updated_at = NOW()
           WHERE id = $2
           RETURNING *`,

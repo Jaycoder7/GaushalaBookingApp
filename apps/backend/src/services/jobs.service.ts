@@ -96,8 +96,8 @@ async function failJob(job: BackgroundJobRow, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   await query(
     `UPDATE background_jobs
-        SET status = $2,
-            run_after = CASE WHEN $2 = 'pending'
+        SET status = $2::varchar(20),
+            run_after = CASE WHEN $2::varchar(20) = 'pending'
               THEN NOW() + ($3 * INTERVAL '1 minute')
               ELSE run_after END,
             locked_at = NULL, last_error = $4, updated_at = NOW()
