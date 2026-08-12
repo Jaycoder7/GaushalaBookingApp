@@ -6,6 +6,10 @@ export interface BookingRequest {
   phone: string;
   email: string;
   headcount: number;
+  referredBy: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: 'Cumming, GA';
   note?: string;
   captchaToken: string;
 }
@@ -15,6 +19,7 @@ export interface BookingResponse {
   status: string;
   cancellationToken: string;
   cancellationLink: string;
+  manageLink?: string;
   calendarLink?: string;
   message?: string;
 }
@@ -25,12 +30,18 @@ export interface BookingDetails {
   phone: string;
   email: string;
   headcount: number;
+  referredBy?: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: string;
   note?: string;
   slotDate: string;
   slotTime: string;
   slotEndTime?: string;
   status: string;
   calendarLink?: string;
+  visitAddress?: string;
+  parkingAddress?: string;
 }
 
 export async function createBooking(data: BookingRequest): Promise<BookingResponse> {

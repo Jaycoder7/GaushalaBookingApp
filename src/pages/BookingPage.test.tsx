@@ -51,6 +51,7 @@ describe('public booking page', () => {
     await user.type(screen.getByLabelText('Family name'), 'Agrawal');
     await user.type(screen.getByLabelText('Phone'), '7708332230');
     await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
+    await user.type(screen.getByLabelText(/who do you know/i), 'N/A');
     await user.click(screen.getByRole('button', { name: /confirm booking/i }));
 
     expect(await screen.findByText('5 family spots left')).toBeVisible();
@@ -72,10 +73,12 @@ describe('public booking page', () => {
     await user.type(screen.getByLabelText('Family name'), 'Agrawal');
     await user.type(screen.getByLabelText('Phone'), '7708332230');
     await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
+    await user.type(screen.getByLabelText(/who do you know/i), 'N/A');
     await user.click(screen.getByRole('button', { name: /confirm booking/i }));
 
     expect(await screen.findByRole('heading', { name: /awaiting admin approval/i })).toBeVisible();
     expect(screen.queryByRole('link', { name: /add to google calendar/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/confirmation email and calendar invitation after an administrator approves/i)).toBeVisible();
+    expect(screen.getByText(/email delivery is not required/i)).toBeVisible();
+    expect(screen.getByText('00000000-0000-4000-8000-000000000003')).toBeVisible();
   });
 });

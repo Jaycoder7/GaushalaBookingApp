@@ -21,6 +21,10 @@ interface AdminBookingRow extends QueryResultRow {
   phone: string;
   email: string;
   headcount: number;
+  referred_by: string | null;
+  is_donor: boolean;
+  is_volunteer: boolean;
+  visit_location: string;
   note: string | null;
   status: string;
   slot_id: string;
@@ -49,6 +53,10 @@ function serializeBooking(row: AdminBookingRow) {
     phone: row.phone,
     email: row.email,
     headcount: row.headcount,
+    referredBy: row.referred_by || undefined,
+    isDonor: row.is_donor,
+    isVolunteer: row.is_volunteer,
+    visitLocation: row.visit_location,
     note: row.note || undefined,
     status: row.status,
     slotId: row.slot_id,
@@ -60,12 +68,15 @@ function serializeBooking(row: AdminBookingRow) {
 }
 
 function validateBookingDetails(body: Record<string, unknown>) {
-  const { familyName, phone, email, headcount, note } = body;
+  const { familyName, phone, email, headcount, referredBy, isDonor, isVolunteer, visitLocation, note } = body;
   if (
     typeof familyName !== 'string' || familyName.trim().length < 2 || familyName.trim().length > 255 ||
     typeof phone !== 'string' || !/^\+?[1-9]\d{1,14}$/.test(phone) ||
     typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     !Number.isInteger(headcount) || Number(headcount) < 1 || Number(headcount) > 6 ||
+    (typeof referredBy === 'string' && referredBy.length > 255) ||
+    typeof isDonor !== 'boolean' || typeof isVolunteer !== 'boolean' ||
+    visitLocation !== 'Cumming, GA' ||
     (typeof note === 'string' && note.length > 1000)
   ) {
     throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid booking details.');
@@ -75,6 +86,10 @@ function validateBookingDetails(body: Record<string, unknown>) {
     phone: phone.trim(),
     email: email.trim().toLowerCase(),
     headcount: Number(headcount),
+    referredBy: typeof referredBy === 'string' && referredBy.trim() ? referredBy.trim() : null,
+    isDonor,
+    isVolunteer,
+    visitLocation,
     note: typeof note === 'string' && note.trim() ? note.trim() : null,
   };
 }
@@ -152,10 +167,11 @@ router.get('/bookings/export', async (req, res, next) => {
       filters.values
     );
     const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    const header = ['Date', 'Start time', 'End time', 'Family', 'Phone', 'Email', 'Headcount', 'Status', 'Note'];
+    const header = ['Date', 'Start time', 'End time', 'Location', 'Family', 'Phone', 'Email', 'Headcount', 'Referred by', 'Donor', 'Volunteer', 'Status', 'Note'];
     const rows = result.rows.map(row => [
-      row.slot_date, row.start_time.slice(0, 5), row.end_time.slice(0, 5), row.family_name,
-      row.phone, row.email, row.headcount, row.status, row.note || '',
+      row.slot_date, row.start_time.slice(0, 5), row.end_time.slice(0, 5), row.visit_location, row.family_name,
+      row.phone, row.email, row.headcount, row.referred_by || '', row.is_donor ? 'Yes' : 'No',
+      row.is_volunteer ? 'Yes' : 'No', row.status, row.note || '',
     ]);
     res.type('text/csv');
     res.attachment('gaushala-bookings.csv');
@@ -209,11 +225,18 @@ router.post('/bookings', async (req, res, next) => {
         throw new HttpError(409, 'DUPLICATE_BOOKING', 'This visitor already has a booking for that time.');
       }
       const inserted = await client.query<AdminBookingRow>(
-        `INSERT INTO bookings (slot_id, family_name, phone, email, headcount, note, status)
-         VALUES ($1, $2, $3, LOWER($4), $5, $6, 'confirmed')
-         RETURNING id, family_name, phone, email, headcount, note, status,
+        `INSERT INTO bookings (
+           slot_id, family_name, phone, email, headcount, referred_by,
+           is_donor, is_volunteer, visit_location, note, status
+         )
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, 'confirmed')
+         RETURNING id, family_name, phone, email, headcount, referred_by,
+                   is_donor, is_volunteer, visit_location, note, status,
                    slot_id, created_at`,
-        [slotId, details.familyName, details.phone, details.email, details.headcount, details.note]
+        [
+          slotId, details.familyName, details.phone, details.email, details.headcount,
+          details.referredBy, details.isDonor, details.isVolunteer, details.visitLocation, details.note,
+        ]
       );
       await recalculateSlot(client, slotId);
       await enqueueBackgroundJob(client, 'calendar_sync', { slotId }, {
@@ -249,10 +272,15 @@ router.patch('/bookings/:bookingId', async (req, res, next) => {
       const updated = await client.query<AdminBookingRow>(
         `UPDATE bookings
             SET family_name = $1, phone = $2, email = $3, headcount = $4,
-                note = $5, updated_at = NOW()
-          WHERE id = $6
+                referred_by = $5, is_donor = $6, is_volunteer = $7,
+                visit_location = $8, note = $9, updated_at = NOW()
+          WHERE id = $10
           RETURNING *`,
-        [details.familyName, details.phone, details.email, details.headcount, details.note, row.id]
+        [
+          details.familyName, details.phone, details.email, details.headcount,
+          details.referredBy, details.isDonor, details.isVolunteer,
+          details.visitLocation, details.note, row.id,
+        ]
       );
       await enqueueBackgroundJob(client, 'calendar_sync', { slotId: row.slot_id }, {
         dedupeKey: `calendar:${row.slot_id}`,

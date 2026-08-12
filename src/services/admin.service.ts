@@ -7,6 +7,10 @@ export interface AdminBooking {
   phone: string;
   email: string;
   headcount: number;
+  referredBy?: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: 'Cumming, GA';
   note?: string;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'no_show';
   slotId: string;
@@ -57,7 +61,7 @@ export async function updateBookingStatus(id: string, status: AdminBooking['stat
 
 export async function updateAdminBooking(
   id: string,
-  data: Pick<AdminBooking, 'familyName' | 'phone' | 'email' | 'headcount' | 'note'>
+  data: Pick<AdminBooking, 'familyName' | 'phone' | 'email' | 'headcount' | 'referredBy' | 'isDonor' | 'isVolunteer' | 'visitLocation' | 'note'>
 ): Promise<AdminBooking> {
   return (await apiClient.patch(`/admin/bookings/${id}`, data)).data;
 }
@@ -68,6 +72,10 @@ export async function createAdminBooking(data: {
   phone: string;
   email: string;
   headcount: number;
+  referredBy?: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: 'Cumming, GA';
   note?: string;
 }): Promise<AdminBooking> {
   return (await apiClient.post('/admin/bookings', data)).data;

@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Link } from 'react-router-dom';
 import VisitInformation from '../components/VisitInformation';
 import { createBooking, BookingResponse } from '../services/bookings.service';
+import { rememberBooking } from '../services/recent-bookings.service';
 import { getAvailableSlots, Slot } from '../services/slots.service';
 import { formatSlotTime } from '../utils/formatting';
 
@@ -13,6 +14,10 @@ interface BookingForm {
   phone: string;
   email: string;
   headcount: number;
+  referredBy: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: 'Cumming, GA';
   note: string;
 }
 
@@ -21,6 +26,10 @@ const initialForm: BookingForm = {
   phone: '',
   email: '',
   headcount: 1,
+  referredBy: '',
+  isDonor: false,
+  isVolunteer: false,
+  visitLocation: 'Cumming, GA',
   note: '',
 };
 
@@ -106,6 +115,13 @@ export default function BookingPage() {
         captchaToken: captchaSiteKey ? captchaToken : 'development-bypass',
       });
       setSuccess(response);
+      rememberBooking({
+        token: response.cancellationToken,
+        bookingId: response.id,
+        familyName: form.familyName,
+        slotDate: selectedSlot?.date || '',
+        createdAt: new Date().toISOString(),
+      });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (submitError) {
       const message = apiError(submitError);
@@ -151,9 +167,14 @@ export default function BookingPage() {
             </div>
             <p className="text-sm leading-6 text-earth-700">
               {isPending
-                ? <>We sent a receipt to <strong>{form.email}</strong>. You will receive a confirmation email and calendar invitation after an administrator approves your request.</>
+                ? <>You can return to this booking at any time to check whether it has been approved. Email delivery is not required.</>
                 : <>A confirmation has been sent to <strong>{form.email}</strong>. Keep the cancellation link below in case your plans change.</>}
             </p>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+              <p className="text-sm font-semibold text-blue-950">Save your private booking reference</p>
+              <p className="mt-2 break-all font-mono text-sm text-blue-900">{success.cancellationToken}</p>
+              <p className="mt-2 text-xs leading-5 text-blue-800">This booking is also saved in this browser. Keep the reference private; anyone with it can view or cancel the request.</p>
+            </div>
             {success.calendarLink && (
               <a
                 href={success.calendarLink}
@@ -165,7 +186,7 @@ export default function BookingPage() {
               </a>
             )}
             <a
-              href={success.cancellationLink}
+              href={success.manageLink || `/booking/${success.cancellationToken}`}
               className="inline-flex w-full justify-center rounded-xl border border-earth-100 px-5 py-3 font-semibold text-saffron-700 transition hover:bg-saffron-50"
             >
               {isPending ? 'View or cancel this request' : 'View or cancel this booking'}
@@ -188,7 +209,10 @@ export default function BookingPage() {
       <header className="relative overflow-hidden bg-earth-900 px-4 py-14 text-white sm:py-20">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(233,120,24,0.28),transparent_45%)]" />
         <div className="relative mx-auto max-w-5xl">
-          <div className="mb-8 flex justify-end">
+          <div className="mb-8 flex flex-wrap justify-end gap-3">
+            <Link to="/booking-status" className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
+              Check booking status
+            </Link>
             <Link to="/admin" className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
               Admin login
             </Link>
@@ -332,6 +356,52 @@ export default function BookingPage() {
                 className="mt-2 w-full rounded-xl border border-earth-100 bg-white px-4 py-3 font-normal"
               >
                 {[1, 2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{count}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              Who do you know or who referred you at the Gaushala?
+              <input
+                required
+                minLength={2}
+                maxLength={255}
+                value={form.referredBy}
+                onChange={event => setForm({ ...form, referredBy: event.target.value })}
+                className="mt-2 w-full rounded-xl border border-earth-100 px-4 py-3 font-normal"
+                placeholder="Enter a name, or N/A if no one"
+              />
+            </label>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+              <label className="block text-sm font-semibold">
+                Are you a donor?
+                <select
+                  value={form.isDonor ? 'yes' : 'no'}
+                  onChange={event => setForm({ ...form, isDonor: event.target.value === 'yes' })}
+                  className="mt-2 w-full rounded-xl border border-earth-100 bg-white px-4 py-3 font-normal"
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                Are you a volunteer?
+                <select
+                  value={form.isVolunteer ? 'yes' : 'no'}
+                  onChange={event => setForm({ ...form, isVolunteer: event.target.value === 'yes' })}
+                  className="mt-2 w-full rounded-xl border border-earth-100 bg-white px-4 py-3 font-normal"
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
+            </div>
+            <label className="block text-sm font-semibold">
+              Which location are you visiting?
+              <select
+                value={form.visitLocation}
+                onChange={event => setForm({ ...form, visitLocation: event.target.value as 'Cumming, GA' })}
+                className="mt-2 w-full rounded-xl border border-earth-100 bg-white px-4 py-3 font-normal"
+              >
+                <option value="Cumming, GA">Cumming, GA</option>
               </select>
             </label>
             <label className="block text-sm font-semibold">

@@ -35,6 +35,10 @@ export interface Booking {
   phone: string;
   email: string;
   headcount: number;
+  referredBy?: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: 'Cumming, GA';
   note?: string;
   status: BookingStatus;
   cancellationToken: string;
@@ -42,7 +46,7 @@ export interface Booking {
   cancelledAt?: Date;
 }
 
-export type BookingStatus = 'confirmed' | 'cancelled' | 'no_show';
+export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'no_show';
 
 export interface CreateBookingRequest {
   slotId: string;
@@ -50,6 +54,10 @@ export interface CreateBookingRequest {
   phone: string;
   email: string;
   headcount: number;
+  referredBy: string;
+  isDonor: boolean;
+  isVolunteer: boolean;
+  visitLocation: 'Cumming, GA';
   note?: string;
   captchaToken: string;
 }
@@ -59,6 +67,7 @@ export interface BookingResponse {
   status: BookingStatus;
   cancellationToken: string;
   cancellationLink: string;
+  manageLink?: string;
 }
 
 // Admin Types

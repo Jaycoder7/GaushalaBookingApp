@@ -58,7 +58,8 @@ export default function AdminDashboard() {
   const [saving, setSaving] = useState(false);
   const [showManualBooking, setShowManualBooking] = useState(false);
   const [manualBooking, setManualBooking] = useState({
-    slotId: '', familyName: '', phone: '', email: '', headcount: 1, note: '',
+    slotId: '', familyName: '', phone: '', email: '', headcount: 1,
+    referredBy: '', isDonor: false, isVolunteer: false, visitLocation: 'Cumming, GA' as const, note: '',
   });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -127,7 +128,10 @@ export default function AdminDashboard() {
     setError('');
     try {
       await createAdminBooking(manualBooking);
-      setManualBooking({ slotId: '', familyName: '', phone: '', email: '', headcount: 1, note: '' });
+      setManualBooking({
+        slotId: '', familyName: '', phone: '', email: '', headcount: 1,
+        referredBy: '', isDonor: false, isVolunteer: false, visitLocation: 'Cumming, GA', note: '',
+      });
       setShowManualBooking(false);
       setNotice('Manual booking created.');
       await load();
@@ -341,6 +345,16 @@ export default function AdminDashboard() {
                   <select value={manualBooking.headcount} onChange={event => setManualBooking({ ...manualBooking, headcount: Number(event.target.value) })} className="rounded-xl border border-earth-100 bg-white px-3 py-2.5 text-sm">
                     {[1, 2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{count} {count === 1 ? 'visitor' : 'visitors'}</option>)}
                   </select>
+                  <input placeholder="Referred by (optional)" value={manualBooking.referredBy} onChange={event => setManualBooking({ ...manualBooking, referredBy: event.target.value })} className="rounded-xl border border-earth-100 px-3 py-2.5 text-sm" />
+                  <select aria-label="Donor" value={manualBooking.isDonor ? 'yes' : 'no'} onChange={event => setManualBooking({ ...manualBooking, isDonor: event.target.value === 'yes' })} className="rounded-xl border border-earth-100 bg-white px-3 py-2.5 text-sm">
+                    <option value="no">Not a donor</option><option value="yes">Donor</option>
+                  </select>
+                  <select aria-label="Volunteer" value={manualBooking.isVolunteer ? 'yes' : 'no'} onChange={event => setManualBooking({ ...manualBooking, isVolunteer: event.target.value === 'yes' })} className="rounded-xl border border-earth-100 bg-white px-3 py-2.5 text-sm">
+                    <option value="no">Not a volunteer</option><option value="yes">Volunteer</option>
+                  </select>
+                  <select aria-label="Visit location" value={manualBooking.visitLocation} className="rounded-xl border border-earth-100 bg-white px-3 py-2.5 text-sm" disabled>
+                    <option value="Cumming, GA">Cumming, GA</option>
+                  </select>
                   <input placeholder="Note (optional)" value={manualBooking.note} onChange={event => setManualBooking({ ...manualBooking, note: event.target.value })} className="rounded-xl border border-earth-100 px-3 py-2.5 text-sm" />
                 </div>
                 <button disabled={saving} className="mt-4 rounded-xl bg-saffron-500 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60">
@@ -354,23 +368,27 @@ export default function AdminDashboard() {
               <div className="p-8 text-center text-earth-700">No bookings match this view.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px] text-left text-sm">
+                <table className="w-full min-w-[1120px] text-left text-sm">
                   <thead className="bg-earth-50 text-xs uppercase tracking-wide text-earth-700">
                     <tr>
                       <th className="px-5 py-3">Visit</th><th className="px-5 py-3">Family</th>
-                      <th className="px-5 py-3">Contact</th><th className="px-5 py-3">Visitors</th>
+                      <th className="px-5 py-3">Contact</th><th className="px-5 py-3">Visitor profile</th><th className="px-5 py-3">Visitors</th>
                       <th className="px-5 py-3">Status</th><th className="px-5 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-earth-100">
                     {bookings.map(booking => editingBooking?.id === booking.id ? (
                       <tr key={booking.id}>
-                        <td colSpan={6} className="bg-saffron-50/40 px-5 py-4">
-                          <form onSubmit={saveBookingEdits} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                        <td colSpan={7} className="bg-saffron-50/40 px-5 py-4">
+                          <form onSubmit={saveBookingEdits} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                             <input required minLength={2} aria-label="Family name" value={editingBooking.familyName} onChange={event => setEditingBooking({ ...editingBooking, familyName: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
                             <input required type="tel" aria-label="Phone" value={editingBooking.phone} onChange={event => setEditingBooking({ ...editingBooking, phone: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
                             <input required type="email" aria-label="Email" value={editingBooking.email} onChange={event => setEditingBooking({ ...editingBooking, email: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
                             <input required type="number" min={1} max={6} aria-label="Visitors" value={editingBooking.headcount} onChange={event => setEditingBooking({ ...editingBooking, headcount: Number(event.target.value) })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <input aria-label="Referred by" placeholder="Referred by" value={editingBooking.referredBy || ''} onChange={event => setEditingBooking({ ...editingBooking, referredBy: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
+                            <select aria-label="Donor" value={editingBooking.isDonor ? 'yes' : 'no'} onChange={event => setEditingBooking({ ...editingBooking, isDonor: event.target.value === 'yes' })} className="rounded-lg border border-earth-100 bg-white px-3 py-2"><option value="no">Not a donor</option><option value="yes">Donor</option></select>
+                            <select aria-label="Volunteer" value={editingBooking.isVolunteer ? 'yes' : 'no'} onChange={event => setEditingBooking({ ...editingBooking, isVolunteer: event.target.value === 'yes' })} className="rounded-lg border border-earth-100 bg-white px-3 py-2"><option value="no">Not a volunteer</option><option value="yes">Volunteer</option></select>
+                            <select aria-label="Visit location" value={editingBooking.visitLocation} className="rounded-lg border border-earth-100 bg-white px-3 py-2" disabled><option value="Cumming, GA">Cumming, GA</option></select>
                             <input aria-label="Note" placeholder="Note" value={editingBooking.note || ''} onChange={event => setEditingBooking({ ...editingBooking, note: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
                             <div className="flex gap-2">
                               <button disabled={saving} className="rounded-lg bg-saffron-500 px-3 py-2 font-bold text-white">Save</button>
@@ -384,6 +402,7 @@ export default function AdminDashboard() {
                         <td className="px-5 py-4 font-semibold">{format(parseISO(booking.slotDate), 'MMM d, yyyy')}<span className="block font-normal text-earth-700">{formatSlotTime(booking.startTime, booking.endTime)}</span></td>
                         <td className="px-5 py-4">{booking.familyName}</td>
                         <td className="px-5 py-4">{booking.phone}<span className="block text-earth-700">{booking.email}</span></td>
+                        <td className="px-5 py-4"><span className="block">Referred by: {booking.referredBy || '—'}</span><span className="mt-1 block text-earth-700">{booking.isDonor ? 'Donor' : 'Not donor'} · {booking.isVolunteer ? 'Volunteer' : 'Not volunteer'} · {booking.visitLocation}</span></td>
                         <td className="px-5 py-4">{booking.headcount}</td>
                         <td className="px-5 py-4 capitalize">{booking.status.replace('_', ' ')}</td>
                         <td className="px-5 py-4">

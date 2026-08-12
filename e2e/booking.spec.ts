@@ -38,6 +38,7 @@ test('public booking flow confirms a reservation', async ({ page }) => {
   await page.getByLabel('Family name').fill('Patel family');
   await page.getByLabel('Phone').fill('+15551234567');
   await page.getByLabel('Email').fill('visitor@example.com');
+  await page.getByLabel(/Who do you know/i).fill('N/A');
   await page.getByRole('button', { name: 'Confirm booking' }).click();
   await expect(page.getByText('Booking confirmed')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Add to Google Calendar' })).toHaveAttribute('href', /calendar\.google\.com/);

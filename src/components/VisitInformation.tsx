@@ -1,25 +1,10 @@
-import { Info, MapPin } from 'lucide-react';
-
-const locations = [
-  {
-    label: 'Gaushala location',
-    address: '1945 Old Atlanta Rd, Cumming, GA 30041',
-  },
-  {
-    label: 'Parking location',
-    address: '3100-3660 Melody Mizer Ln, Cumming, GA 30041',
-  },
-];
+import { Info, LockKeyhole, MapPin } from 'lucide-react';
 
 const guidelines = [
   "For food, only bring fresh bananas and carrots. If you wouldn't eat it, don't bring it.",
   'Be respectful and do not litter.',
   'Your visit will last approximately one hour.',
 ];
-
-function googleMapsUrl(address: string) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-}
 
 export default function VisitInformation() {
   return (
@@ -39,22 +24,21 @@ export default function VisitInformation() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
-          {locations.map(location => (
-            <div key={location.label} className="flex items-start gap-3">
-              <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-blue-600" size={20} />
-              <div>
-                <p className="text-sm font-semibold text-earth-900">{location.label}</p>
-                <a
-                  href={googleMapsUrl(location.address)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-block text-sm leading-6 text-blue-700 underline decoration-blue-200 underline-offset-4 transition hover:text-blue-900 hover:decoration-blue-500"
-                >
-                  {location.address}
-                </a>
-              </div>
+          <div className="flex items-start gap-3">
+            <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-blue-600" size={20} />
+            <div>
+              <p className="text-sm font-semibold text-earth-900">Visit location</p>
+              <p className="mt-1 text-sm leading-6 text-earth-700">Cumming, Georgia</p>
             </div>
-          ))}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
+            <LockKeyhole aria-hidden="true" className="mt-0.5 shrink-0 text-blue-600" size={20} />
+            <div>
+              <p className="text-sm font-semibold text-blue-950">Address shared after approval</p>
+              <p className="mt-1 text-sm leading-6 text-blue-900">The exact Gaushala and parking addresses are shown in your booking status once an administrator confirms your visit.</p>
+            </div>
+          </div>
 
           <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-950">
             <span className="font-semibold">Visit duration:</span> 1 hour

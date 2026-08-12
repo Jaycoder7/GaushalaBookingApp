@@ -5,6 +5,18 @@ import { Link, useParams } from 'react-router-dom';
 import { BookingDetails, cancelBooking, getBooking } from '../services/bookings.service';
 import { formatTime } from '../utils/formatting';
 
+function googleMapsUrl(address: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+  cancelled: 'bg-stone-200 text-stone-600',
+  no_show: 'bg-stone-200 text-stone-600',
+};
+
 function apiError(error: unknown): string {
   if (axios.isAxiosError(error) && typeof error.response?.data?.error === 'string') {
     return error.response.data.error;
@@ -69,10 +81,8 @@ export default function CancelPage() {
               <div className="rounded-2xl border border-earth-100 bg-earth-50 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-bold text-earth-900">{booking.familyName}</p>
-                  <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${
-                    booking.status === 'cancelled' ? 'bg-stone-200 text-stone-600' : 'bg-emerald-100 text-emerald-700'
-                  }`}>
-                    {booking.status}
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${statusStyles[booking.status] || statusStyles.pending}`}>
+                    {booking.status.replace('_', ' ')}
                   </span>
                 </div>
                 <p className="mt-4 text-lg font-semibold">{format(parseISO(booking.slotDate), 'EEEE, MMMM d, yyyy')}</p>
@@ -83,11 +93,37 @@ export default function CancelPage() {
                 <div className="rounded-xl bg-stone-100 p-4 text-stone-700">
                   This booking has been cancelled and the visit time has been released.
                 </div>
+              ) : booking.status === 'rejected' ? (
+                <div className="rounded-xl bg-red-50 p-4 text-red-800">
+                  This visit request was not approved. You may return to the booking page and request another available time.
+                </div>
+              ) : booking.status === 'no_show' ? (
+                <div className="rounded-xl bg-stone-100 p-4 text-stone-700">
+                  This visit has been marked as a no-show.
+                </div>
               ) : (
                 <>
-                  <p className="text-sm leading-6 text-earth-700">
-                    If your plans change, please cancel so another family can use this visit time.
-                  </p>
+                  {booking.status === 'pending' ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                      Your request is awaiting administrator approval. The exact visit and parking addresses will appear here once it is confirmed.
+                    </div>
+                  ) : (
+                    <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                      <div>
+                        <p className="text-sm font-bold text-emerald-950">Gaushala address</p>
+                        <a href={googleMapsUrl(booking.visitAddress || '')} target="_blank" rel="noreferrer" className="mt-1 inline-flex text-sm font-semibold text-emerald-800 underline underline-offset-4">
+                          {booking.visitAddress}
+                        </a>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-emerald-950">Parking address</p>
+                        <a href={googleMapsUrl(booking.parkingAddress || '')} target="_blank" rel="noreferrer" className="mt-1 inline-flex text-sm font-semibold text-emerald-800 underline underline-offset-4">
+                          {booking.parkingAddress}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-sm leading-6 text-earth-700">If your plans change, please cancel so another family can use this visit time.</p>
                   <button
                     type="button"
                     onClick={cancel}

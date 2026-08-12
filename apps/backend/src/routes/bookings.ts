@@ -22,6 +22,10 @@ interface BookingRow extends QueryResultRow {
   phone: string;
   email: string;
   headcount: number;
+  referred_by: string | null;
+  is_donor: boolean;
+  is_volunteer: boolean;
+  visit_location: string;
   note: string | null;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'no_show';
   slot_id: string;
@@ -68,13 +72,21 @@ function bookingDetails(row: BookingRow) {
     phone: row.phone,
     email: row.email,
     headcount: row.headcount,
+    referredBy: row.referred_by || undefined,
+    isDonor: row.is_donor,
+    isVolunteer: row.is_volunteer,
+    visitLocation: row.visit_location,
     note: row.note || undefined,
     slotDate: row.date,
     slotTime: row.start_time.slice(0, 5),
     slotEndTime: row.end_time.slice(0, 5),
     status: row.status,
     ...(row.status === 'confirmed'
-      ? { calendarLink: buildGoogleCalendarUrl(visitorCalendarEvent(row, cancellationLink)) }
+      ? {
+          calendarLink: buildGoogleCalendarUrl(visitorCalendarEvent(row, cancellationLink)),
+          visitAddress: '1945 Old Atlanta Rd, Cumming, GA 30041',
+          parkingAddress: '3100-3660 Melody Mizer Ln, Cumming, GA 30041',
+        }
       : {}),
   };
 }
@@ -82,7 +94,10 @@ function bookingDetails(row: BookingRow) {
 // POST /api/bookings - Create a booking
 router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req, res, next) => {
   try {
-    const { slotId, familyName, phone, email, headcount, note, captchaToken } = req.body;
+    const {
+      slotId, familyName, phone, email, headcount, referredBy,
+      isDonor, isVolunteer, visitLocation, note, captchaToken,
+    } = req.body;
 
     if (!captchaToken || typeof captchaToken !== 'string') {
       throw new HttpError(400, 'CAPTCHA_FAILED', 'Please complete the CAPTCHA challenge.');
@@ -127,9 +142,13 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       }
 
       const inserted = await client.query<BookingRow>(
-        `INSERT INTO bookings (slot_id, family_name, phone, email, headcount, note, status)
-         VALUES ($1, $2, $3, LOWER($4), $5, $6, 'pending')
+        `INSERT INTO bookings (
+           slot_id, family_name, phone, email, headcount, referred_by,
+           is_donor, is_volunteer, visit_location, note, status
+         )
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, 'pending')
          RETURNING id, cancellation_token, family_name, phone, email, headcount,
+                   referred_by, is_donor, is_volunteer, visit_location,
                    note, status, slot_id`,
         [
           slotId,
@@ -137,6 +156,10 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
           phone.trim(),
           email.trim(),
           headcount,
+          referredBy.trim(),
+          isDonor,
+          isVolunteer,
+          visitLocation,
           typeof note === 'string' && note.trim() ? note.trim() : null,
         ]
       );
@@ -169,6 +192,7 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       status: booking.status,
       cancellationToken: booking.cancellation_token,
       cancellationLink,
+      manageLink: `${appUrl}/booking/${booking.cancellation_token}`,
       message: 'Your visit request is awaiting admin approval.',
     });
     dispatchBackgroundJobs(1);
@@ -189,7 +213,8 @@ router.get('/:cancellationToken', async (req, res, next) => {
     }
     const result = await withTransaction(client => client.query<BookingRow>(
       `SELECT b.id, b.cancellation_token, b.family_name, b.phone, b.email,
-              b.headcount, b.note, b.status, b.slot_id,
+              b.headcount, b.referred_by, b.is_donor, b.is_volunteer,
+              b.visit_location, b.note, b.status, b.slot_id,
               s.date::text, s.start_time::text, s.end_time::text
          FROM bookings b
          JOIN slots s ON s.id = b.slot_id
@@ -213,7 +238,8 @@ router.delete('/:cancellationToken', bookingLimiter, async (req, res, next) => {
     const result = await withTransaction(async client => {
       const result = await client.query<BookingRow>(
         `SELECT b.id, b.cancellation_token, b.family_name, b.phone, b.email,
-                b.headcount, b.note, b.status, b.slot_id,
+                b.headcount, b.referred_by, b.is_donor, b.is_volunteer,
+                b.visit_location, b.note, b.status, b.slot_id,
                 s.date::text, s.start_time::text, s.end_time::text
            FROM bookings b
            JOIN slots s ON s.id = b.slot_id
