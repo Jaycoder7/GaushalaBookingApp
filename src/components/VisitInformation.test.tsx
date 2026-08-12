@@ -7,10 +7,15 @@ describe('VisitInformation', () => {
     render(<VisitInformation />);
 
     expect(screen.getByRole('heading', { name: 'Visit information' })).toBeInTheDocument();
-    expect(screen.getByText('Visit duration:')).toHaveTextContent('Visit duration:');
-    expect(screen.getByText('1 hour')).toBeInTheDocument();
-    expect(screen.getByText(/only bring fresh bananas and carrots/i)).toBeInTheDocument();
-    expect(screen.getByText(/be respectful and do not litter/i)).toBeInTheDocument();
+    expect(screen.getByText('Expected visit duration:')).toBeInTheDocument();
+    expect(screen.getByText('30–45 minutes')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Do' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "Don't" })).toBeInTheDocument();
+    expect(screen.getByText(/children under age 12/i)).toBeInTheDocument();
+    expect(screen.getByText(/purses, bags, backpacks/i)).toBeInTheDocument();
+    expect(screen.getByText(/human food such as roti, puri, halwa, ladoos/i)).toBeInTheDocument();
+    expect(screen.getByText(/do not bring raw vegetables/i)).toBeInTheDocument();
+    expect(screen.getByText(/do not reach through or over a fence/i)).toBeInTheDocument();
 
     expect(screen.getByText('Cumming, Georgia')).toBeInTheDocument();
     expect(screen.getByText(/address shared after approval/i)).toBeInTheDocument();

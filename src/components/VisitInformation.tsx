@@ -1,10 +1,40 @@
-import { Info, LockKeyhole, MapPin } from 'lucide-react';
+import { CheckCircle2, Info, LockKeyhole, MapPin, XCircle } from 'lucide-react';
 
-const guidelines = [
-  "For food, only bring fresh bananas and carrots. If you wouldn't eat it, don't bring it.",
-  'Be respectful and do not litter.',
-  'Your visit will last approximately one hour.',
+const dos = [
+  'Follow all instructions from Gaushala staff and volunteers.',
+  'Keep children under age 12 within an adult’s reach and supervise them closely at all times.',
+  'Wear comfortable, closed-toe shoes and remain in designated visitor areas.',
+  'Be calm and respectful around the cows, and place all trash in the proper bins.',
 ];
+
+const donts = [
+  'Do not bring purses, bags, backpacks, or other unnecessary personal items.',
+  'Do not bring human food such as roti, puri, halwa, ladoos, or similar items.',
+  'Do not bring raw vegetables or any other food items unless Gaushala staff specifically asks you to.',
+  'Do not reach through or over a fence to feed or pet an animal, especially from behind the fence.',
+  'Do not run, shout, litter, or enter restricted animal-care areas.',
+];
+
+function GuidelineList({ items, tone }: { items: string[]; tone: 'do' | 'dont' }) {
+  const isDo = tone === 'do';
+  const Icon = isDo ? CheckCircle2 : XCircle;
+  return (
+    <div className={`rounded-2xl border p-5 ${isDo ? 'border-emerald-200 bg-emerald-50/70' : 'border-red-200 bg-red-50/70'}`}>
+      <h3 className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wide ${isDo ? 'text-emerald-800' : 'text-red-800'}`}>
+        <Icon aria-hidden="true" size={20} />
+        {isDo ? 'Do' : "Don't"}
+      </h3>
+      <ul className="mt-4 space-y-3 text-sm leading-6 text-earth-800">
+        {items.map(item => (
+          <li key={item} className="flex gap-3">
+            <span aria-hidden="true" className={`mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full ${isDo ? 'bg-emerald-600' : 'bg-red-600'}`} />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function VisitInformation() {
   return (
@@ -22,7 +52,7 @@ export default function VisitInformation() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
         <div className="space-y-4">
           <div className="flex items-start gap-3">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-blue-600" size={20} />
@@ -41,20 +71,13 @@ export default function VisitInformation() {
           </div>
 
           <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-950">
-            <span className="font-semibold">Visit duration:</span> 1 hour
+            <span className="font-semibold">Expected visit duration:</span> 30–45 minutes
           </div>
         </div>
 
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-earth-900">Guidelines</h3>
-          <ul className="mt-3 space-y-3 text-sm leading-6 text-earth-700">
-            {guidelines.map(guideline => (
-              <li key={guideline} className="flex gap-3">
-                <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                <span>{guideline}</span>
-              </li>
-            ))}
-          </ul>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <GuidelineList items={dos} tone="do" />
+          <GuidelineList items={donts} tone="dont" />
         </div>
       </div>
     </section>
