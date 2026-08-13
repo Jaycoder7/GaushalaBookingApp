@@ -3,6 +3,7 @@ import axios from 'axios';
 import { addDays, format, parseISO } from 'date-fns';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import GaushalaCarousel from '../components/GaushalaCarousel';
 import VisitInformation from '../components/VisitInformation';
 import { createBooking, BookingResponse } from '../services/bookings.service';
 import { rememberBooking } from '../services/recent-bookings.service';
@@ -235,6 +236,8 @@ export default function BookingPage() {
           </p>
         </div>
       </header>
+
+      <GaushalaCarousel />
 
       <div className="px-4">
         <VisitInformation />

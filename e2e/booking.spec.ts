@@ -33,6 +33,10 @@ test('public booking flow confirms a reservation', async ({ page }) => {
   }));
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Admin login' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Life at the Gaushala' })).toBeVisible();
+  await expect(page.getByText('Photo 1 of 12')).toBeVisible();
+  await page.getByRole('button', { name: 'Next Gaushala photo' }).click();
+  await expect(page.getByText('Photo 2 of 12')).toBeVisible();
   await expect(page.getByText('4 family spots left')).toBeVisible();
   await page.getByRole('button', { name: /9:00 AM.*4 family spots left/i }).click();
   await page.getByLabel('Family name').fill('Patel family');
