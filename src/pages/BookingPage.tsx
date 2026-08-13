@@ -18,6 +18,8 @@ interface BookingForm {
   isDonor: boolean;
   isVolunteer: boolean;
   visitLocation: 'Cumming, GA';
+  termsAccepted: boolean;
+  noShowFeePledged: boolean;
   note: string;
 }
 
@@ -30,6 +32,8 @@ const initialForm: BookingForm = {
   isDonor: false,
   isVolunteer: false,
   visitLocation: 'Cumming, GA',
+  termsAccepted: false,
+  noShowFeePledged: false,
   note: '',
 };
 
@@ -58,6 +62,7 @@ export default function BookingPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<BookingResponse | null>(null);
   const [captchaToken, setCaptchaToken] = useState('');
+  const [showTerms, setShowTerms] = useState(false);
   const captchaRef = useRef<HCaptcha>(null);
   const captchaSiteKey = import.meta.env.MODE === 'test'
     ? undefined
@@ -141,7 +146,13 @@ export default function BookingPage() {
     setSelectedSlotId('');
     setError('');
     setCaptchaToken('');
-    setForm(current => ({ ...current, headcount: 1, note: '' }));
+    setForm(current => ({
+      ...current,
+      headcount: 1,
+      note: '',
+      termsAccepted: false,
+      noShowFeePledged: false,
+    }));
     captchaRef.current?.resetCaptcha();
     await refreshSlots().catch(loadError => setError(apiError(loadError)));
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -415,6 +426,40 @@ export default function BookingPage() {
                 placeholder="Accessibility needs or anything we should know"
               />
             </label>
+            <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <div>
+                <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-blue-950">
+                  <input
+                    required
+                    type="checkbox"
+                    checked={form.termsAccepted}
+                    onChange={event => setForm({ ...form, termsAccepted: event.target.checked })}
+                    className="mt-1 h-5 w-5 shrink-0 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>I agree to the Gaushala terms, visitor policies, safety guidelines, and cancellation policy.</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowTerms(true)}
+                  className="ml-8 mt-2 text-sm font-semibold text-blue-700 underline decoration-blue-300 underline-offset-4 hover:text-blue-900"
+                >
+                  View interim terms &amp; policies
+                </button>
+              </div>
+              <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-blue-950">
+                <input
+                  required
+                  type="checkbox"
+                  checked={form.noShowFeePledged}
+                  onChange={event => setForm({ ...form, noShowFeePledged: event.target.checked })}
+                  className="mt-1 h-5 w-5 shrink-0 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  I pledge to pay a $21 no-show fee if I do not attend my confirmed visit and do not cancel beforehand.
+                  <span className="mt-1 block text-xs text-blue-800">This records your pledge; payment collection is not currently enabled in the app.</span>
+                </span>
+              </label>
+            </div>
             {captchaSiteKey && (
               <div className="overflow-hidden">
                 <HCaptcha ref={captchaRef} sitekey={captchaSiteKey} onVerify={setCaptchaToken} onExpire={() => setCaptchaToken('')} />
@@ -432,6 +477,61 @@ export default function BookingPage() {
           </div>
         </section>
       </form>
+      {showTerms && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-earth-900/70 p-4"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) setShowTerms(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="terms-title"
+            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Interim visitor terms</p>
+                <h2 id="terms-title" className="mt-1 text-2xl font-bold text-earth-900">Terms, policies, and visitor pledge</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTerms(false)}
+                aria-label="Close terms and policies"
+                className="rounded-full border border-earth-100 px-3 py-1.5 text-lg text-earth-700 hover:bg-earth-50"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="mt-6 space-y-5 text-sm leading-6 text-earth-700">
+              <div>
+                <h3 className="font-bold text-earth-900">Visitor safety and conduct</h3>
+                <p className="mt-1">I will follow the posted visit guidelines, respect the Gaushala, its animals, volunteers, and other visitors, supervise children in my group, and not litter.</p>
+              </div>
+              <div>
+                <h3 className="font-bold text-earth-900">Booking approval and address privacy</h3>
+                <p className="mt-1">A request is not confirmed until it is approved by an administrator. The Gaushala's exact address is shared only after approval.</p>
+              </div>
+              <div>
+                <h3 className="font-bold text-earth-900">Cancellation and no-show pledge</h3>
+                <p className="mt-1">If I cannot attend, I will cancel before the confirmed visit. If I do not attend and do not cancel, I pledge to pay a $21 no-show fee.</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                Formal policy forms and documents will be linked here when they are available. These interim terms remain visible before booking in the meantime.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTerms(false)}
+              className="mt-7 w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            >
+              Close and return to booking
+            </button>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

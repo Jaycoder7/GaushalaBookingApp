@@ -49,12 +49,20 @@ CREATE TABLE IF NOT EXISTS bookings (
   is_donor BOOLEAN NOT NULL DEFAULT FALSE,
   is_volunteer BOOLEAN NOT NULL DEFAULT FALSE,
   visit_location VARCHAR(100) NOT NULL DEFAULT 'Cumming, GA' CHECK (visit_location IN ('Cumming, GA')),
+  terms_accepted_at TIMESTAMPTZ,
+  no_show_fee_pledged_at TIMESTAMPTZ,
+  consent_version VARCHAR(50),
   note TEXT,
   status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected', 'cancelled', 'no_show')),
   cancellation_token UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  cancelled_at TIMESTAMPTZ
+  cancelled_at TIMESTAMPTZ,
+  CONSTRAINT bookings_consent_record_check CHECK (
+    (terms_accepted_at IS NULL AND no_show_fee_pledged_at IS NULL AND consent_version IS NULL)
+    OR
+    (terms_accepted_at IS NOT NULL AND no_show_fee_pledged_at IS NOT NULL AND consent_version IS NOT NULL)
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_slots_date_status ON slots(date, status);

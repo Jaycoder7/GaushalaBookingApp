@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 
 export function validateBookingInput(req: Request, res: Response, next: NextFunction) {
-  const { slotId, familyName, phone, email, headcount, referredBy, isDonor, isVolunteer, visitLocation } = req.body;
+  const {
+    slotId, familyName, phone, email, headcount, referredBy, isDonor, isVolunteer,
+    visitLocation, termsAccepted, noShowFeePledged,
+  } = req.body;
   
   const errors: string[] = [];
   
@@ -14,6 +17,8 @@ export function validateBookingInput(req: Request, res: Response, next: NextFunc
   if (typeof isDonor !== 'boolean') errors.push('Donor selection is required');
   if (typeof isVolunteer !== 'boolean') errors.push('Volunteer selection is required');
   if (visitLocation !== 'Cumming, GA') errors.push('Invalid visit location');
+  if (termsAccepted !== true) errors.push('You must agree to the terms and visitor policies');
+  if (noShowFeePledged !== true) errors.push('You must acknowledge the $21 no-show fee pledge');
   if (typeof req.body.note === 'string' && req.body.note.length > 1000) errors.push('Note must be 1000 characters or fewer');
   
   if (errors.length > 0) {

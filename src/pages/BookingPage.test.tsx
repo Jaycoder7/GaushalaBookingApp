@@ -52,6 +52,8 @@ describe('public booking page', () => {
     await user.type(screen.getByLabelText('Phone'), '7708332230');
     await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
     await user.type(screen.getByLabelText(/who do you know/i), 'N/A');
+    await user.click(screen.getByLabelText(/I agree to the Gaushala terms/i));
+    await user.click(screen.getByLabelText(/I pledge to pay a \$21 no-show fee/i));
     await user.click(screen.getByRole('button', { name: /confirm booking/i }));
 
     expect(await screen.findByText('5 family spots left')).toBeVisible();
@@ -74,11 +76,21 @@ describe('public booking page', () => {
     await user.type(screen.getByLabelText('Phone'), '7708332230');
     await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
     await user.type(screen.getByLabelText(/who do you know/i), 'N/A');
+    await user.click(screen.getByLabelText(/I agree to the Gaushala terms/i));
+    await user.click(screen.getByLabelText(/I pledge to pay a \$21 no-show fee/i));
     await user.click(screen.getByRole('button', { name: /confirm booking/i }));
 
     expect(await screen.findByRole('heading', { name: /awaiting admin approval/i })).toBeVisible();
     expect(screen.queryByRole('link', { name: /add to google calendar/i })).not.toBeInTheDocument();
     expect(screen.getByText(/email delivery is not required/i)).toBeVisible();
     expect(screen.getByText('00000000-0000-4000-8000-000000000003')).toBeVisible();
+  });
+
+  it('shows interim terms and a placeholder for future policy documents', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><BookingPage /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /view interim terms/i }));
+    expect(screen.getByRole('dialog', { name: /terms, policies, and visitor pledge/i })).toBeVisible();
+    expect(screen.getByText(/formal policy forms and documents will be linked here/i)).toBeVisible();
   });
 });

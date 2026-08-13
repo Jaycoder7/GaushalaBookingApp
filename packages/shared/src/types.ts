@@ -58,6 +58,8 @@ export interface CreateBookingRequest {
   isDonor: boolean;
   isVolunteer: boolean;
   visitLocation: 'Cumming, GA';
+  termsAccepted: boolean;
+  noShowFeePledged: boolean;
   note?: string;
   captchaToken: string;
 }

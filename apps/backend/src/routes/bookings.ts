@@ -14,6 +14,7 @@ import { recalculateSlot } from '../services/slots.service';
 
 const router = express.Router();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CONSENT_VERSION = 'interim-2026-08-13';
 
 interface BookingRow extends QueryResultRow {
   id: string;
@@ -144,9 +145,10 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
       const inserted = await client.query<BookingRow>(
         `INSERT INTO bookings (
            slot_id, family_name, phone, email, headcount, referred_by,
-           is_donor, is_volunteer, visit_location, note, status
+           is_donor, is_volunteer, visit_location, terms_accepted_at,
+           no_show_fee_pledged_at, consent_version, note, status
          )
-         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, $10, 'pending')
+         VALUES ($1, $2, $3, LOWER($4), $5, $6, $7, $8, $9, NOW(), NOW(), $10, $11, 'pending')
          RETURNING id, cancellation_token, family_name, phone, email, headcount,
                    referred_by, is_donor, is_volunteer, visit_location,
                    note, status, slot_id`,
@@ -160,6 +162,7 @@ router.post('/', bookingLimiter, validateBookingInput, phoneLimiter, async (req,
           isDonor,
           isVolunteer,
           visitLocation,
+          CONSENT_VERSION,
           typeof note === 'string' && note.trim() ? note.trim() : null,
         ]
       );

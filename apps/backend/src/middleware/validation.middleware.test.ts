@@ -18,6 +18,8 @@ const validBooking = {
   isDonor: false,
   isVolunteer: true,
   visitLocation: 'Cumming, GA',
+  termsAccepted: true,
+  noShowFeePledged: true,
 };
 
 describe('validateBookingInput', () => {
@@ -42,6 +44,22 @@ describe('validateBookingInput', () => {
         expect.stringMatching(/Donor selection/),
         expect.stringMatching(/Volunteer selection/),
         expect.stringMatching(/Invalid visit location/),
+      ]),
+    }));
+  });
+
+  it('requires both consent acknowledgements', () => {
+    const res = responseMock();
+    const next = jest.fn() as NextFunction;
+    validateBookingInput({
+      body: { ...validBooking, termsAccepted: false, noShowFeePledged: undefined },
+    } as Request, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      details: expect.arrayContaining([
+        expect.stringMatching(/agree to the terms/i),
+        expect.stringMatching(/no-show fee pledge/i),
       ]),
     }));
   });
