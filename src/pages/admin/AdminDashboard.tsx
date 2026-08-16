@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { addDays, format, parseISO } from 'date-fns';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Copy, Mail } from 'lucide-react';
+import { FormEvent, Fragment, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AdminBooking,
@@ -21,6 +22,7 @@ import {
   updateBookingStatus,
 } from '../../services/admin.service';
 import { Slot } from '../../services/slots.service';
+import { manualEmailTemplate } from '../../utils/admin-email-template';
 import { formatSlotTime } from '../../utils/formatting';
 
 type Tab = 'bookings' | 'schedule' | 'blocking';
@@ -32,6 +34,14 @@ const defaultSchedule: SlotTemplate = {
   slotLengthMinutes: 60,
   familyCapacityPerSlot: 6,
   active: true,
+};
+
+const statusStyles: Record<AdminBooking['status'], string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+  cancelled: 'bg-stone-200 text-stone-700',
+  no_show: 'bg-stone-200 text-stone-700',
 };
 
 function messageFrom(error: unknown): string {
@@ -52,6 +62,7 @@ export default function AdminDashboard() {
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
   const [editingBooking, setEditingBooking] = useState<AdminBooking | null>(null);
+  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(() => new Set());
   const [blockDay, setBlockDay] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [blockReason, setBlockReason] = useState('');
   const [loading, setLoading] = useState(true);
@@ -156,6 +167,30 @@ export default function AdminDashboard() {
       setError(messageFrom(updateError));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleBookingDetails = (bookingId: string) => {
+    setExpandedBookingIds(current => {
+      const next = new Set(current);
+      if (next.has(bookingId)) next.delete(bookingId);
+      else next.add(bookingId);
+      return next;
+    });
+  };
+
+  const beginEditingBooking = (booking: AdminBooking) => {
+    setExpandedBookingIds(current => new Set(current).add(booking.id));
+    setEditingBooking({ ...booking });
+  };
+
+  const copyManualEmail = async (booking: AdminBooking) => {
+    setError('');
+    try {
+      await navigator.clipboard.writeText(manualEmailTemplate(booking).copyText);
+      setNotice(`Personalized email for ${booking.familyName} copied to the clipboard.`);
+    } catch {
+      setError('The email could not be copied automatically. Select the template text and copy it manually.');
     }
   };
 
@@ -368,18 +403,22 @@ export default function AdminDashboard() {
               <div className="p-8 text-center text-earth-700">No bookings match this view.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1120px] text-left text-sm">
+                <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="bg-earth-50 text-xs uppercase tracking-wide text-earth-700">
                     <tr>
-                      <th className="px-5 py-3">Visit</th><th className="px-5 py-3">Family</th>
-                      <th className="px-5 py-3">Contact</th><th className="px-5 py-3">Visitor profile</th><th className="px-5 py-3">Visitors</th>
-                      <th className="px-5 py-3">Status</th><th className="px-5 py-3">Actions</th>
+                      <th className="px-5 py-3">Booking</th>
+                      <th className="px-5 py-3">Visit</th>
+                      <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-earth-100">
-                    {bookings.map(booking => editingBooking?.id === booking.id ? (
+                    {bookings.map(booking => {
+                      const isExpanded = expandedBookingIds.has(booking.id);
+                      const emailTemplate = manualEmailTemplate(booking);
+                      return editingBooking?.id === booking.id ? (
                       <tr key={booking.id}>
-                        <td colSpan={7} className="bg-saffron-50/40 px-5 py-4">
+                        <td colSpan={4} className="bg-saffron-50/40 px-5 py-4">
                           <form onSubmit={saveBookingEdits} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                             <input required minLength={2} aria-label="Family name" value={editingBooking.familyName} onChange={event => setEditingBooking({ ...editingBooking, familyName: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
                             <input required type="tel" aria-label="Phone" value={editingBooking.phone} onChange={event => setEditingBooking({ ...editingBooking, phone: event.target.value })} className="rounded-lg border border-earth-100 px-3 py-2" />
@@ -398,32 +437,104 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ) : (
-                      <tr key={booking.id}>
-                        <td className="px-5 py-4 font-semibold">{format(parseISO(booking.slotDate), 'MMM d, yyyy')}<span className="block font-normal text-earth-700">{formatSlotTime(booking.startTime, booking.endTime)}</span></td>
-                        <td className="px-5 py-4">{booking.familyName}</td>
-                        <td className="px-5 py-4">{booking.phone}<span className="block text-earth-700">{booking.email}</span></td>
-                        <td className="px-5 py-4"><span className="block">Referred by: {booking.referredBy || '—'}</span><span className="mt-1 block text-earth-700">{booking.isDonor ? 'Donor' : 'Not donor'} · {booking.isVolunteer ? 'Volunteer' : 'Not volunteer'} · {booking.visitLocation}</span></td>
-                        <td className="px-5 py-4">{booking.headcount}</td>
-                        <td className="px-5 py-4 capitalize">{booking.status.replace('_', ' ')}</td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                          {booking.status === 'pending' ? <>
-                            <button type="button" onClick={() => void changeStatus(booking, 'confirmed')} className="rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white">Approve</button>
-                            <button type="button" onClick={() => void changeStatus(booking, 'rejected')} className="rounded-lg bg-red-50 px-3 py-1.5 font-bold text-red-700">Reject</button>
-                          </> : <select
-                              value={booking.status}
-                              onChange={event => void changeStatus(booking, event.target.value as AdminBooking['status'])}
-                              className="rounded-lg border border-earth-100 bg-white px-2 py-1.5"
-                            >
-                              <option value="confirmed">Confirmed</option>
-                              <option value="rejected">Rejected</option>
-                              <option value="cancelled">Cancelled</option>
-                              <option value="no_show">No-show</option>
-                            </select>}
-                          <button type="button" onClick={() => setEditingBooking({ ...booking })} className="rounded-lg border border-earth-100 px-2 py-1.5 font-semibold">Edit</button></div>
-                        </td>
-                      </tr>
-                    ))}
+                      <Fragment key={booking.id}>
+                        <tr className={isExpanded ? 'bg-earth-50/40' : undefined}>
+                          <td className="px-5 py-4">
+                            <span className="block font-semibold text-earth-900">{booking.familyName}</span>
+                            <span className="mt-1 block max-w-[260px] truncate text-xs text-earth-700">{booking.email}</span>
+                          </td>
+                          <td className="px-5 py-4 font-semibold">
+                            {format(parseISO(booking.slotDate), 'MMM d, yyyy')}
+                            <span className="block font-normal text-earth-700">{formatSlotTime(booking.startTime, booking.endTime)} · {booking.headcount} {booking.headcount === 1 ? 'visitor' : 'visitors'}</span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase ${statusStyles[booking.status]}`}>
+                              {booking.status.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {booking.status === 'pending' ? <>
+                                <button type="button" onClick={() => void changeStatus(booking, 'confirmed')} className="rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white">Approve</button>
+                                <button type="button" onClick={() => void changeStatus(booking, 'rejected')} className="rounded-lg bg-red-50 px-3 py-1.5 font-bold text-red-700">Reject</button>
+                              </> : <select
+                                  aria-label={`Status for ${booking.familyName}`}
+                                  value={booking.status}
+                                  onChange={event => void changeStatus(booking, event.target.value as AdminBooking['status'])}
+                                  className="rounded-lg border border-earth-100 bg-white px-2 py-1.5"
+                                >
+                                  <option value="confirmed">Confirmed</option>
+                                  <option value="rejected">Rejected</option>
+                                  <option value="cancelled">Cancelled</option>
+                                  <option value="no_show">No-show</option>
+                                </select>}
+                              <button
+                                type="button"
+                                aria-expanded={isExpanded}
+                                aria-controls={`booking-details-${booking.id}`}
+                                onClick={() => toggleBookingDetails(booking.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-earth-100 px-2.5 py-1.5 font-semibold"
+                              >
+                                {isExpanded ? <ChevronUp aria-hidden="true" size={16} /> : <ChevronDown aria-hidden="true" size={16} />}
+                                {isExpanded ? 'Hide details' : 'View details'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr id={`booking-details-${booking.id}`}>
+                            <td colSpan={4} className="bg-earth-50/70 px-5 py-5">
+                              <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                                <div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <h3 className="font-bold text-earth-900">Full form response</h3>
+                                    <button type="button" onClick={() => beginEditingBooking(booking)} className="rounded-lg border border-earth-200 bg-white px-3 py-1.5 text-xs font-bold">Edit response</button>
+                                  </div>
+                                  <dl className="mt-4 grid gap-x-5 gap-y-4 sm:grid-cols-2">
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Family name</dt><dd className="mt-1 text-earth-900">{booking.familyName}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Visitors</dt><dd className="mt-1 text-earth-900">{booking.headcount}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Phone</dt><dd className="mt-1"><a className="font-semibold text-saffron-700" href={`tel:${booking.phone}`}>{booking.phone}</a></dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Email</dt><dd className="mt-1 break-all"><a className="font-semibold text-saffron-700" href={`mailto:${booking.email}`}>{booking.email}</a></dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Referred by</dt><dd className="mt-1 text-earth-900">{booking.referredBy || 'Not provided'}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Location</dt><dd className="mt-1 text-earth-900">{booking.visitLocation}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Donor</dt><dd className="mt-1 text-earth-900">{booking.isDonor ? 'Yes' : 'No'}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Volunteer</dt><dd className="mt-1 text-earth-900">{booking.isVolunteer ? 'Yes' : 'No'}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Terms and policies</dt><dd className="mt-1 text-earth-900">{booking.termsAcceptedAt ? `Accepted ${format(parseISO(booking.termsAcceptedAt), 'MMM d, yyyy · h:mm a')}` : 'Not recorded (admin-created booking)'}</dd></div>
+                                    <div><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">$21 no-show pledge</dt><dd className="mt-1 text-earth-900">{booking.noShowFeePledgedAt ? `Pledged ${format(parseISO(booking.noShowFeePledgedAt), 'MMM d, yyyy · h:mm a')}` : 'Not recorded (admin-created booking)'}</dd></div>
+                                    {booking.consentVersion && <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Policy version</dt><dd className="mt-1 text-earth-900">{booking.consentVersion}</dd></div>}
+                                    <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Note</dt><dd className="mt-1 whitespace-pre-wrap text-earth-900">{booking.note || 'No note provided'}</dd></div>
+                                    <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase tracking-wide text-earth-600">Submitted</dt><dd className="mt-1 text-earth-900">{format(parseISO(booking.createdAt), 'MMM d, yyyy · h:mm a')}</dd></div>
+                                  </dl>
+                                </div>
+
+                                <section aria-labelledby={`manual-email-${booking.id}`} className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <h3 id={`manual-email-${booking.id}`} className="font-bold text-blue-950">Manual email</h3>
+                                      <p className="mt-1 text-xs leading-5 text-blue-800">Personalized automatically using this person’s details and current booking status.</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <button type="button" onClick={() => void copyManualEmail(booking)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">
+                                        <Copy aria-hidden="true" size={15} /> Copy email
+                                      </button>
+                                      <a href={`mailto:${booking.email}?subject=${encodeURIComponent(emailTemplate.subject)}&body=${encodeURIComponent(emailTemplate.body)}`} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-bold text-blue-800">
+                                        <Mail aria-hidden="true" size={15} /> Open email app
+                                      </a>
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 space-y-3 text-sm">
+                                    <p><span className="font-bold text-blue-950">To:</span> <span className="break-all">{booking.email}</span></p>
+                                    <p><span className="font-bold text-blue-950">Subject:</span> {emailTemplate.subject}</p>
+                                    <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-xl border border-blue-100 bg-white p-4 font-sans text-sm leading-6 text-earth-900">{emailTemplate.body}</pre>
+                                  </div>
+                                </section>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -25,6 +25,9 @@ interface AdminBookingRow extends QueryResultRow {
   is_donor: boolean;
   is_volunteer: boolean;
   visit_location: string;
+  terms_accepted_at: Date | null;
+  no_show_fee_pledged_at: Date | null;
+  consent_version: string | null;
   note: string | null;
   status: string;
   slot_id: string;
@@ -47,6 +50,7 @@ function visitorCalendarEvent(row: AdminBookingRow, cancellationLink: string): V
 }
 
 function serializeBooking(row: AdminBookingRow) {
+  const appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
   return {
     id: row.id,
     familyName: row.family_name,
@@ -57,6 +61,9 @@ function serializeBooking(row: AdminBookingRow) {
     isDonor: row.is_donor,
     isVolunteer: row.is_volunteer,
     visitLocation: row.visit_location,
+    termsAcceptedAt: row.terms_accepted_at || undefined,
+    noShowFeePledgedAt: row.no_show_fee_pledged_at || undefined,
+    consentVersion: row.consent_version || undefined,
     note: row.note || undefined,
     status: row.status,
     slotId: row.slot_id,
@@ -64,6 +71,7 @@ function serializeBooking(row: AdminBookingRow) {
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
     createdAt: row.created_at,
+    manageLink: `${appUrl}/booking/${row.cancellation_token}`,
   };
 }
 

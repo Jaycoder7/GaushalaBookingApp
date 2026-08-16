@@ -11,6 +11,9 @@ export interface AdminBooking {
   isDonor: boolean;
   isVolunteer: boolean;
   visitLocation: 'Cumming, GA';
+  termsAcceptedAt?: string;
+  noShowFeePledgedAt?: string;
+  consentVersion?: string;
   note?: string;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'no_show';
   slotId: string;
@@ -18,6 +21,7 @@ export interface AdminBooking {
   startTime: string;
   endTime: string;
   createdAt: string;
+  manageLink: string;
 }
 
 export interface AdminSummary {
