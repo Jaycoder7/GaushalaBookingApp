@@ -14,7 +14,7 @@ import { recalculateSlot } from '../services/slots.service';
 
 const router = express.Router();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const CONSENT_VERSION = 'interim-2026-08-13';
+const CONSENT_VERSION = 's3-liability-waiver-2026-08-17';
 
 interface BookingRow extends QueryResultRow {
   id: string;

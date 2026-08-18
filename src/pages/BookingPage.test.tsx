@@ -52,7 +52,7 @@ describe('public booking page', () => {
     await user.type(screen.getByLabelText('Phone'), '7708332230');
     await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
     await user.type(screen.getByLabelText(/who do you know/i), 'N/A');
-    await user.click(screen.getByLabelText(/I agree to the Gaushala terms/i));
+    await user.click(screen.getByLabelText(/I have read and agree to the Liability Waiver/i));
     await user.click(screen.getByLabelText(/I pledge to pay a \$21 no-show fee/i));
     await user.click(screen.getByRole('button', { name: /confirm booking/i }));
 
@@ -76,7 +76,7 @@ describe('public booking page', () => {
     await user.type(screen.getByLabelText('Phone'), '7708332230');
     await user.type(screen.getByLabelText('Email'), 'visitor@example.com');
     await user.type(screen.getByLabelText(/who do you know/i), 'N/A');
-    await user.click(screen.getByLabelText(/I agree to the Gaushala terms/i));
+    await user.click(screen.getByLabelText(/I have read and agree to the Liability Waiver/i));
     await user.click(screen.getByLabelText(/I pledge to pay a \$21 no-show fee/i));
     await user.click(screen.getByRole('button', { name: /confirm booking/i }));
 
@@ -86,11 +86,15 @@ describe('public booking page', () => {
     expect(screen.getByText('00000000-0000-4000-8000-000000000003')).toBeVisible();
   });
 
-  it('shows interim terms and a placeholder for future policy documents', async () => {
+  it('links the liability waiver from the required visitor documents', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><BookingPage /></MemoryRouter>);
-    await user.click(await screen.findByRole('button', { name: /view interim terms/i }));
-    expect(screen.getByRole('dialog', { name: /terms, policies, and visitor pledge/i })).toBeVisible();
-    expect(screen.getByText(/formal policy forms and documents will be linked here/i)).toBeVisible();
+    await user.click(await screen.findByRole('button', { name: /view waiver, terms/i }));
+    expect(screen.getByRole('dialog', { name: /waiver, terms, and visitor pledge/i })).toBeVisible();
+    expect(screen.getByRole('link', { name: /read the liability waiver/i })).toHaveAttribute(
+      'href',
+      '/documents/s3-gaushala-visit-liability-waiver.pdf',
+    );
+    expect(screen.getByText(/acknowledge that I have read, understood, and voluntarily agree/i)).toBeVisible();
   });
 });

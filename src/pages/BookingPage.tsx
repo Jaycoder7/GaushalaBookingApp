@@ -439,14 +439,14 @@ export default function BookingPage() {
                     onChange={event => setForm({ ...form, termsAccepted: event.target.checked })}
                     className="mt-1 h-5 w-5 shrink-0 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span>I agree to the Gaushala terms, visitor policies, safety guidelines, and cancellation policy.</span>
+                  <span>I have read and agree to the Liability Waiver and Release, Gaushala terms, visitor policies, safety guidelines, and cancellation policy.</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => setShowTerms(true)}
                   className="ml-8 mt-2 text-sm font-semibold text-blue-700 underline decoration-blue-300 underline-offset-4 hover:text-blue-900"
                 >
-                  View interim terms &amp; policies
+                  View waiver, terms &amp; policies
                 </button>
               </div>
               <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-blue-950">
@@ -496,8 +496,8 @@ export default function BookingPage() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Interim visitor terms</p>
-                <h2 id="terms-title" className="mt-1 text-2xl font-bold text-earth-900">Terms, policies, and visitor pledge</h2>
+                <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Required visitor documents</p>
+                <h2 id="terms-title" className="mt-1 text-2xl font-bold text-earth-900">Waiver, terms, and visitor pledge</h2>
               </div>
               <button
                 type="button"
@@ -509,6 +509,18 @@ export default function BookingPage() {
               </button>
             </div>
             <div className="mt-6 space-y-5 text-sm leading-6 text-earth-700">
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
+                <h3 className="font-bold">Liability Waiver and Release</h3>
+                <p className="mt-1">The S3 Gaushala, Atlanta Chapter waiver covers release of claims, assumption of risk, indemnification, governing law, and acknowledgment of voluntary participation.</p>
+                <a
+                  href="/documents/s3-gaushala-visit-liability-waiver.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800"
+                >
+                  Read the liability waiver (PDF)
+                </a>
+              </div>
               <div>
                 <h3 className="font-bold text-earth-900">Visitor safety and conduct</h3>
                 <p className="mt-1">I will follow the posted visit guidelines, respect the Gaushala, its animals, volunteers, and other visitors, supervise children in my group, and not litter.</p>
@@ -522,7 +534,7 @@ export default function BookingPage() {
                 <p className="mt-1">If I cannot attend, I will cancel before the confirmed visit. If I do not attend and do not cancel, I pledge to pay a $21 no-show fee.</p>
               </div>
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                Formal policy forms and documents will be linked here when they are available. These interim terms remain visible before booking in the meantime.
+                By checking the required acceptance box, I acknowledge that I have read, understood, and voluntarily agree to the Liability Waiver and Release and the visitor terms shown here.
               </div>
             </div>
             <button
