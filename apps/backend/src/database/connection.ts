@@ -1,11 +1,36 @@
 import '../config';
 import { Pool, PoolClient, QueryResultRow } from 'pg';
 
+const rawConnectionString = process.env.DATABASE_URL
+  || process.env.POSTGRES_URL
+  || process.env.POSTGRES_PRISMA_URL;
+
+function normalizeConnectionString(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  const url = new URL(value);
+
+  // node-postgres otherwise treats sslmode=require as certificate-verifying
+  // mode. libpq (and Supabase) define it as encrypted without CA verification.
+  if (url.searchParams.get('sslmode') === 'require'
+    && !url.searchParams.has('uselibpqcompat')) {
+    url.searchParams.set('uselibpqcompat', 'true');
+  }
+
+  return url.toString();
+}
+
+const connectionString = normalizeConnectionString(rawConnectionString);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
+  connectionString,
+  // Keep each serverless instance's pool deliberately small. Supabase's
+  // transaction pooler URL should be preferred in production.
+  max: Number(process.env.DATABASE_POOL_MAX || 5),
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on('error', (err) => {
